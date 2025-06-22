@@ -49,15 +49,15 @@ export function KPICardWithVariance({
     if (!trend || trend === 'neutral') return null;
     
     const Icon = trend === 'up' ? TrendingUp : TrendingDown;
-    const color = trend === 'up' ? 'text-green-600' : 'text-red-600';
+    const color = trend === 'up' ? 'text-emerald' : 'text-coral';
     
     return <Icon className={cn('h-4 w-4', color)} />;
   };
   
   return (
-    <Card className={className}>
+    <Card className={cn('card-shadow hover:card-shadow-hover transition-all duration-200 border-mist', className)}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">
+        <CardTitle className="text-sm font-medium text-navy">
           {title}
         </CardTitle>
         <VarianceBadge 
@@ -67,11 +67,11 @@ export function KPICardWithVariance({
         />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{formatValue(value)}</div>
+        <div className="text-2xl font-bold font-mono text-navy">{formatValue(value)}</div>
         {(trendValue || previousValue) && (
           <div className="flex items-center gap-1 mt-1">
             {getTrendIcon()}
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-navy/60">
               {trendValue || `from ${formatValue(previousValue!)}`}
             </p>
           </div>

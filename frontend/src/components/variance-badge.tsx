@@ -83,21 +83,21 @@ export function VarianceBadge({ workspaceId, metricId, className }: VarianceBadg
     if (activeAlert.severity === 'critical') {
       return (
         <AlertCircle 
-          className="h-5 w-5 text-red-600 animate-pulse cursor-pointer" 
+          className="h-5 w-5 text-coral animate-pulse cursor-pointer" 
           onClick={() => setShowModal(true)}
         />
       );
     }
     return (
-      <AlertTriangle className="h-4 w-4 text-yellow-600" />
+      <AlertTriangle className="h-4 w-4 text-warning" />
     );
   };
   
   const getSeverityColor = (severity: string) => {
     switch (severity) {
-      case 'critical': return 'bg-red-100 text-red-800 border-red-200';
-      case 'warning': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      default: return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'critical': return 'bg-coral/10 text-coral border-coral/20';
+      case 'warning': return 'bg-warning/10 text-warning border-warning/20';
+      default: return 'bg-indigo/10 text-indigo border-indigo/20';
     }
   };
   
@@ -142,7 +142,7 @@ export function VarianceBadge({ workspaceId, metricId, className }: VarianceBadg
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-red-600" />
+              <AlertCircle className="h-5 w-5 text-coral" />
               Variance Alert
             </DialogTitle>
             <DialogDescription>
@@ -193,8 +193,8 @@ export function VarianceBadge({ workspaceId, metricId, className }: VarianceBadg
                       GPT-4
                     </Badge>
                   </h4>
-                  <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-                    <p className="text-sm whitespace-pre-wrap">
+                  <div className="p-4 bg-indigo/5 dark:bg-indigo/10 rounded-lg border border-indigo/10">
+                    <p className="text-sm whitespace-pre-wrap text-navy">
                       {(insightData as InsightData).insight}
                     </p>
                   </div>
