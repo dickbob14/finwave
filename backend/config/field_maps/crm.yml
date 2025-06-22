@@ -1,0 +1,240 @@
+# CRM Field Mappings Configuration
+# Maps CRM fields to Excel template cells for KPI Dashboard
+
+salesforce:
+  # Opportunity/Deal mappings for sales metrics
+  opportunities:
+    # Basic fields
+    Id: Deal_ID
+    Name: Deal_Name
+    AccountId: Company_ID
+    Amount: Deal_Value
+    StageName: Sales_Stage
+    CloseDate: Close_Date
+    Probability: Win_Probability
+    Type: Deal_Type
+    LeadSource: Lead_Source
+    OwnerId: Sales_Rep_ID
+    CreatedDate: Created_Date
+    IsClosed: Is_Closed
+    IsWon: Is_Won
+    ExpectedRevenue: Expected_Revenue
+    
+    # Calculated fields for dashboard
+    Quarter: Fiscal_Quarter
+    Month: Fiscal_Month
+    
+  # Account mappings
+  accounts:
+    Id: Company_ID
+    Name: Company_Name
+    Type: Company_Type
+    Industry: Industry
+    AnnualRevenue: Annual_Revenue
+    NumberOfEmployees: Employee_Count
+    BillingCountry: Country
+    CreatedDate: Company_Created_Date
+    LastModifiedDate: Last_Activity_Date
+    OwnerId: Account_Owner_ID
+    
+  # Contact mappings
+  contacts:
+    Id: Contact_ID
+    FirstName: First_Name
+    LastName: Last_Name
+    Email: Email_Address
+    AccountId: Company_ID
+    Title: Job_Title
+    Department: Department
+    LeadSource: Contact_Source
+    CreatedDate: Contact_Created_Date
+    LastModifiedDate: Contact_Last_Activity
+
+  # Metrics summary mappings (high-level KPIs)
+  metrics:
+    pipeline_value: Total_Pipeline_Value
+    pipeline_count: Pipeline_Deal_Count
+    bookings_mtd: MTD_Bookings
+    deals_won_mtd: MTD_Deals_Won
+    
+hubspot:
+  # Deal mappings
+  opportunities:
+    # Map HubSpot fields to same target fields as Salesforce
+    hs_object_id: Deal_ID
+    dealname: Deal_Name
+    associatedcompanyid: Company_ID
+    amount: Deal_Value
+    dealstage: Sales_Stage
+    closedate: Close_Date
+    hs_probability: Win_Probability
+    dealtype: Deal_Type
+    hs_analytics_source: Lead_Source
+    hubspot_owner_id: Sales_Rep_ID
+    createdate: Created_Date
+    hs_is_closed: Is_Closed
+    hs_is_closed_won: Is_Won
+    hs_projected_amount: Expected_Revenue
+    
+    # Calculated fields
+    Quarter: Fiscal_Quarter
+    Month: Fiscal_Month
+    
+  # Company mappings
+  accounts:
+    hs_object_id: Company_ID
+    name: Company_Name
+    type: Company_Type
+    industry: Industry
+    annualrevenue: Annual_Revenue
+    numberofemployees: Employee_Count
+    country: Country
+    createdate: Company_Created_Date
+    hs_lastmodifieddate: Last_Activity_Date
+    hubspot_owner_id: Account_Owner_ID
+    
+  # Contact mappings  
+  contacts:
+    hs_object_id: Contact_ID
+    firstname: First_Name
+    lastname: Last_Name
+    email: Email_Address
+    associatedcompanyid: Company_ID
+    jobtitle: Job_Title
+    hs_contact_department: Department
+    hs_analytics_source: Contact_Source
+    createdate: Contact_Created_Date
+    lastmodifieddate: Contact_Last_Activity
+    
+  # Metrics summary mappings
+  metrics:
+    pipeline_value: Total_Pipeline_Value
+    pipeline_count: Pipeline_Deal_Count
+    bookings_mtd: MTD_Bookings
+    deals_won_mtd: MTD_Deals_Won
+
+# KPI Dashboard specific cell mappings
+# These map the unified field names to specific Excel cells
+kpi_dashboard_cells:
+  # Sales Performance section (B4:E10)
+  sales_metrics:
+    MTD_Bookings: C5
+    QTD_Bookings: D5
+    YTD_Bookings: E5
+    Pipeline_Deal_Count: C6
+    Total_Pipeline_Value: C7
+    Average_Deal_Size: C8
+    Win_Rate: C9
+    Sales_Cycle_Days: C10
+    
+  # Customer Metrics section (B12:E18)
+  customer_metrics:
+    New_Customers_MTD: C13
+    Total_Active_Customers: C14
+    Customer_Churn_Rate: C15
+    Net_Revenue_Retention: C16
+    Customer_Acquisition_Cost: C17
+    Customer_Lifetime_Value: C18
+    
+  # Pipeline Analysis section (B20:E25)
+  pipeline_analysis:
+    Stage_Discovery: C21
+    Stage_Qualified: C22
+    Stage_Proposal: C23
+    Stage_Negotiation: C24
+    Stage_Closed_Won: C25
+    
+  # Team Performance section (G4:J15)
+  team_performance:
+    # Dynamically populated based on sales reps
+    # Format: Rep_Name, Deals_Won, Revenue, Win_Rate
+    
+  # Top Deals section (G17:J25)
+  top_deals:
+    # Dynamically populated with top 8 deals
+    # Format: Company, Deal_Value, Stage, Close_Date
+
+# Field type definitions for data validation
+field_types:
+  # Numeric fields that need formatting
+  currency_fields:
+    - Deal_Value
+    - Expected_Revenue
+    - Annual_Revenue
+    - Total_Pipeline_Value
+    - MTD_Bookings
+    - QTD_Bookings
+    - YTD_Bookings
+    - Average_Deal_Size
+    - Customer_Acquisition_Cost
+    - Customer_Lifetime_Value
+    
+  # Percentage fields (0-100 or 0-1)
+  percentage_fields:
+    - Win_Probability
+    - Win_Rate
+    - Customer_Churn_Rate
+    - Net_Revenue_Retention
+    
+  # Date fields for parsing
+  date_fields:
+    - Close_Date
+    - Created_Date
+    - Company_Created_Date
+    - Last_Activity_Date
+    - Contact_Created_Date
+    - Contact_Last_Activity
+    
+  # Integer fields
+  count_fields:
+    - Pipeline_Deal_Count
+    - MTD_Deals_Won
+    - Employee_Count
+    - New_Customers_MTD
+    - Total_Active_Customers
+    - Sales_Cycle_Days
+    
+# Aggregation rules for calculating KPIs
+aggregations:
+  # How to calculate Average Deal Size
+  Average_Deal_Size:
+    formula: "SUM(Deal_Value WHERE Is_Won=True) / COUNT(Deal_ID WHERE Is_Won=True)"
+    
+  # Win Rate calculation
+  Win_Rate:
+    formula: "COUNT(Deal_ID WHERE Is_Won=True) / COUNT(Deal_ID WHERE Is_Closed=True) * 100"
+    
+  # Sales Cycle calculation
+  Sales_Cycle_Days:
+    formula: "AVG(DATEDIFF(Close_Date, Created_Date) WHERE Is_Won=True)"
+    
+  # Customer metrics (may need additional data sources)
+  Customer_Churn_Rate:
+    formula: "Customers_Lost_This_Month / Total_Customers_Start_of_Month * 100"
+    note: "Requires account status tracking"
+    
+  Net_Revenue_Retention:
+    formula: "(MRR_End + Expansion - Contraction) / MRR_Start * 100"
+    note: "Requires MRR tracking"
+
+# Date range configurations for different metrics
+date_ranges:
+  MTD:  # Month to Date
+    start: "FIRST_DAY_OF_CURRENT_MONTH"
+    end: "TODAY"
+    
+  QTD:  # Quarter to Date
+    start: "FIRST_DAY_OF_CURRENT_QUARTER"
+    end: "TODAY"
+    
+  YTD:  # Year to Date
+    start: "FIRST_DAY_OF_CURRENT_YEAR"
+    end: "TODAY"
+    
+  Prior_Month:
+    start: "FIRST_DAY_OF_PRIOR_MONTH"
+    end: "LAST_DAY_OF_PRIOR_MONTH"
+    
+  Prior_Quarter:
+    start: "FIRST_DAY_OF_PRIOR_QUARTER"
+    end: "LAST_DAY_OF_PRIOR_QUARTER"

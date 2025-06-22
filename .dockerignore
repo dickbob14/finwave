@@ -1,0 +1,30 @@
+# Root .dockerignore (for docker-compose)
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+venv_etl/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Local dev databases
+*.db
+*.sqlite
+
+# OS files
+.DS_Store
+Thumbs.db

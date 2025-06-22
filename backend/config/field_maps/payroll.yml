@@ -1,0 +1,186 @@
+# Payroll Field Mappings Configuration
+# Maps payroll system fields to standardized fields
+
+gusto:
+  # Employee mappings
+  employees:
+    employee_id: Employee_ID
+    first_name: First_Name
+    last_name: Last_Name
+    email: Email
+    department: Department
+    job_title: Job_Title
+    employment_type: Employment_Type  # FTE or Contractor
+    hire_date: Hire_Date
+    termination_date: Termination_Date
+    status: Status  # Active or Terminated
+    location: Location
+    
+  # Payroll run mappings
+  payroll_runs:
+    pay_date: Pay_Date
+    employee_id: Employee_ID
+    employee_name: Employee_Name
+    gross_pay: Gross_Pay
+    net_pay: Net_Pay
+    employer_taxes: Employer_Taxes
+    benefits_employer_paid: Benefits_Employer_Paid
+    total_employer_cost: Total_Cost  # Fully loaded cost
+    
+  # Department mappings
+  departments:
+    department_id: Department_ID
+    department_name: Department_Name
+    employee_count: Employee_Count
+    
+  # Summary metrics mappings
+  metrics:
+    total_headcount: Total_Headcount
+    fte_count: FTE_Count
+    contractor_count: Contractor_Count
+    new_hires_mtd: New_Hires_MTD
+    terminations_mtd: Terminations_MTD
+    average_salary: Average_Salary
+    total_payroll_cost: Total_Payroll_Cost
+
+adp:
+  # Employee mappings (ADP Worker API)
+  employees:
+    associateOID: Employee_ID
+    person.legalName.givenName: First_Name
+    person.legalName.familyName1: Last_Name
+    person.communication.emails[0].emailUri: Email
+    workAssignment.assignedOrganizationalUnits[0].nameCode.shortName: Department
+    workAssignment.jobTitle: Job_Title
+    workAssignment.workerTypeCode.codeValue: Employment_Type
+    workAssignment.hireDate: Hire_Date
+    workAssignment.terminationDate: Termination_Date
+    workAssignment.workerStatusCode.codeValue: Status
+    workAssignment.baseRemuneration.payPeriodRateAmount.amountValue: Base_Salary
+    
+  # Payroll mappings
+  payroll_runs:
+    payDate: Pay_Date
+    associateOID: Employee_ID
+    workerName.formattedName: Employee_Name
+    payData.grossPayAmount.amountValue: Gross_Pay
+    payData.netPayAmount.amountValue: Net_Pay
+    payData.taxWithholdingAmount.amountValue: Employer_Taxes
+    
+  # Similar structure for other entities
+  departments:
+    organizationOID: Department_ID
+    organizationCode.shortName: Department_Name
+    
+  metrics:
+    totalActiveCount: Total_Headcount
+    fullTimeCount: FTE_Count
+    contractorCount: Contractor_Count
+
+# Unified schema for payroll summary
+payroll_summary_cells:
+  # Headcount section (B4:E10)
+  headcount_metrics:
+    Total_Headcount: B5
+    FTE_Count: B6
+    Contractor_Count: B7
+    New_Hires_MTD: B8
+    Terminations_MTD: B9
+    Net_Change_MTD: B10
+    
+  # Compensation section (B12:E18)
+  compensation_metrics:
+    Total_Payroll_Cost: C13
+    Average_Salary_FTE: C14
+    Average_Cost_FTE: C15  # Includes benefits & taxes
+    Benefits_Load_Pct: C16  # (Total Cost - Gross) / Gross
+    Payroll_as_Pct_Revenue: C17
+    Revenue_per_Employee: C18
+    
+  # Department breakdown (B20:E30)
+  department_breakdown:
+    # Dynamically populated
+    # Format: Department, Headcount, FTE, Cost
+    
+  # Trends section (G4:J15)
+  trends:
+    # Last 12 months of headcount and cost data
+    # Dynamically populated for charts
+
+# Field type definitions
+field_types:
+  # Currency fields
+  currency_fields:
+    - Gross_Pay
+    - Net_Pay
+    - Employer_Taxes
+    - Benefits_Employer_Paid
+    - Total_Cost
+    - Average_Salary
+    - Total_Payroll_Cost
+    - Average_Cost_FTE
+    - Revenue_per_Employee
+    
+  # Date fields
+  date_fields:
+    - Hire_Date
+    - Termination_Date
+    - Pay_Date
+    
+  # Count fields
+  count_fields:
+    - Total_Headcount
+    - FTE_Count
+    - Contractor_Count
+    - New_Hires_MTD
+    - Terminations_MTD
+    - Employee_Count
+    
+  # Percentage fields
+  percentage_fields:
+    - Benefits_Load_Pct
+    - Payroll_as_Pct_Revenue
+
+# Calculation rules
+calculations:
+  # Net change in headcount
+  Net_Change_MTD:
+    formula: "New_Hires_MTD - Terminations_MTD"
+    
+  # Benefits load percentage
+  Benefits_Load_Pct:
+    formula: "((Total_Cost - Gross_Pay) / Gross_Pay) * 100"
+    
+  # Payroll as % of revenue (requires revenue from metrics)
+  Payroll_as_Pct_Revenue:
+    formula: "(Total_Payroll_Cost / Revenue) * 100"
+    requires: ["revenue"]
+    
+  # Revenue per employee
+  Revenue_per_Employee:
+    formula: "Revenue / Total_Headcount"
+    requires: ["revenue"]
+    
+  # Average fully loaded cost per FTE
+  Average_Cost_FTE:
+    formula: "Total_Payroll_Cost / FTE_Count"
+    
+# Cohort analysis configuration
+cohort_config:
+  # Define cohorts by hire date
+  cohort_periods:
+    - monthly  # Group by hire month
+    - quarterly  # Group by hire quarter
+    
+  # Retention metrics to track
+  retention_metrics:
+    - 30_day_retention
+    - 90_day_retention
+    - 180_day_retention
+    - 365_day_retention
+    
+  # Performance cohorts (requires performance data)
+  performance_cohorts:
+    - top_performers  # Top 20% by rating
+    - solid_performers  # Middle 60%
+    - needs_improvement  # Bottom 20%

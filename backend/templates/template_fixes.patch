@@ -1,0 +1,431 @@
+diff --git a/backend/templates/template_utils.py b/backend/templates/template_utils.py
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/backend/templates/template_utils.py
+@@ -0,0 +1,250 @@
++"""
++Template utility functions for FinWave board pack generation
++"""
++import os
++import logging
++from pathlib import Path
++from typing import Dict, List, Any, Optional, Tuple
++from datetime import datetime, timedelta
++from dateutil.relativedelta import relativedelta
++import pandas as pd
++
++logger = logging.getLogger(__name__)
++
++# Check for optional dependencies
++try:
++    import xlwings as xw
++    XLWINGS_AVAILABLE = True
++except ImportError:
++    XLWINGS_AVAILABLE = False
++    logger.warning("xlwings not available - formula recalculation disabled")
++
++try:
++    from weasyprint import HTML
++    WEASYPRINT_AVAILABLE = True
++except ImportError:
++    WEASYPRINT_AVAILABLE = False
++    logger.warning("WeasyPrint not available - PDF generation disabled")
++
++def get_template_path() -> Path:
++    """Get the path to templates directory relative to repo root"""
++    return Path(__file__).parent.parent / "assets" / "templates"
++
++def get_month_columns(start_date: str, end_date: str) -> List[Tuple[str, datetime]]:
++    """
++    Generate list of month columns between start and end dates
++    Returns list of (display_name, date) tuples
++    """
++    start = pd.to_datetime(start_date)
++    end = pd.to_datetime(end_date)
++    
++    months = []
++    current = start.replace(day=1)  # Start of month
++    
++    while current <= end:
++        display_name = current.strftime("%b %Y")
++        months.append((display_name, current))
++        current = current + relativedelta(months=1)
++    
++    return months
++
++def build_coa_mapping(coa_df: pd.DataFrame) -> Tuple[Dict[str, str], Dict[str, str]]:
++    """
++    Build account to group/subgroup mappings from COA data
++    Returns: (acct_to_group, acct_to_subgroup) dictionaries
++    """
++    acct_to_group = {}
++    acct_to_subgroup = {}
++    
++    for _, row in coa_df.iterrows():
++        account_code = str(row.get('Account_Code', ''))
++        group = str(row.get('Group', ''))
++        subgroup = str(row.get('SubGroup', ''))
++        
++        if account_code:
++            acct_to_group[account_code] = group
++            acct_to_subgroup[account_code] = subgroup
++    
++    return acct_to_group, acct_to_subgroup
++
++def calculate_signed_amount(debit: float, credit: float, account_type: str) -> float:
++    """
++    Calculate signed amount based on account type and debit/credit
++    Assets/Expenses: Debit positive, Credit negative
++    Liabilities/Equity/Income: Credit positive, Debit negative
++    """
++    debit = float(debit or 0)
++    credit = float(credit or 0)
++    
++    if account_type.lower() in ['asset', 'expense']:
++        return debit - credit
++    else:  # liability, equity, income
++        return credit - debit
++
++def format_excel_date(date_str: str) -> str:
++    """Convert date string to Excel-friendly ISO format"""
++    try:
++        dt = pd.to_datetime(date_str)
++        return dt.strftime('%Y-%m-%d')
++    except:
++        return date_str
++
++def get_prior_year_period(start_date: str, end_date: str) -> Tuple[str, str]:
++    """Get the prior year period dates"""
++    start = pd.to_datetime(start_date)
++    end = pd.to_datetime(end_date)
++    
++    py_start = start - relativedelta(years=1)
++    py_end = end - relativedelta(years=1)
++    
++    return py_start.strftime('%Y-%m-%d'), py_end.strftime('%Y-%m-%d')
++
++def recalculate_workbook(wb_path: str) -> Dict[str, Any]:
++    """
++    Recalculate Excel workbook using xlwings if available
++    Returns dict of key values for validation
++    """
++    results = {}
++    
++    if not XLWINGS_AVAILABLE:
++        logger.warning("xlwings not available - skipping recalculation")
++        return results
++    
++    try:
++        # Open workbook invisibly
++        app = xw.App(visible=False)
++        wb = app.books.open(wb_path)
++        
++        # Force recalculation
++        app.calculate()
++        
++        # Extract key values for validation
++        if 'REPORT_P&L' in [s.name for s in wb.sheets]:
++            pl_sheet = wb.sheets['REPORT_P&L']
++            # Assuming revenue is in row 9
++            results['total_revenue'] = pl_sheet.range('C9').value
++            results['total_expenses'] = pl_sheet.range('C20').value  # Adjust row as needed
++            results['net_income'] = pl_sheet.range('C25').value  # Adjust row as needed
++        
++        wb.save()
++        wb.close()
++        app.quit()
++        
++        logger.info(f"Workbook recalculated: {results}")
++        
++    except Exception as e:
++        logger.error(f"Failed to recalculate workbook: {e}")
++    
++    return results
++
++def validate_gl_totals(gl_df: pd.DataFrame, calculated_values: Dict[str, Any]) -> bool:
++    """
++    Validate that GL totals match calculated values
++    """
++    # Group by account type
++    revenue_total = gl_df[gl_df['Account_Type'] == 'Income']['Net_Amount'].sum()
++    expense_total = abs(gl_df[gl_df['Account_Type'] == 'Expense']['Net_Amount'].sum())
++    
++    # Compare with calculated values
++    calc_revenue = calculated_values.get('total_revenue', 0) or 0
++    calc_expenses = calculated_values.get('total_expenses', 0) or 0
++    
++    revenue_match = abs(revenue_total - calc_revenue) < 0.01
++    expense_match = abs(expense_total - calc_expenses) < 0.01
++    
++    if not revenue_match:
++        logger.error(f"Revenue mismatch: GL={revenue_total}, Calc={calc_revenue}")
++    if not expense_match:
++        logger.error(f"Expense mismatch: GL={expense_total}, Calc={calc_expenses}")
++    
++    return revenue_match and expense_match
++
++def create_icon_set_rule(ws, range_address: str, reverse: bool = False):
++    """
++    Create 3-icon set rule for percentage cells
++    Falls back to data bars if icon sets not supported
++    """
++    from openpyxl.formatting.rule import IconSetRule, DataBarRule
++    
++    try:
++        # Try to create icon set rule
++        icon_set = IconSetRule(
++            icon_style='3Arrows',  # or '3TrafficLights1'
++            type='percent',
++            values=[0, 33, 67],
++            reverse=reverse
++        )
++        ws.conditional_formatting.add(range_address, icon_set)
++        logger.info(f"Added icon set rule to {range_address}")
++        
++    except Exception as e:
++        logger.warning(f"Icon set failed, using data bars: {e}")
++        # Fallback to data bars
++        data_bar = DataBarRule(
++            start_type='num',
++            start_value=0,
++            end_type='num', 
++            end_value=100,
++            color="638EC6"  # Blue color
++        )
++        ws.conditional_formatting.add(range_address, data_bar)
++
++def copy_to_google_sheets(excel_path: str, sheet_name: str) -> Optional[str]:
++    """
++    Copy Excel workbook to Google Sheets if credentials available
++    Returns the Google Sheet URL or None
++    """
++    try:
++        import pygsheets
++        from openpyxl import load_workbook
++        
++        # Check for credentials
++        creds_path = os.getenv('GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON')
++        if not creds_path or not os.path.exists(creds_path):
++            logger.info("Google Sheets credentials not found - skipping upload")
++            return None
++        
++        # Authorize
++        gc = pygsheets.authorize(service_file=creds_path)
++        
++        # Create new spreadsheet
++        sh = gc.create(sheet_name)
++        logger.info(f"Created Google Sheet: {sh.title}")
++        
++        # Load Excel workbook
++        wb = load_workbook(excel_path, data_only=True)
++        
++        # Copy each worksheet
++        for ws_name in wb.sheetnames:
++            ws = wb[ws_name]
++            
++            # Get all values
++            data = []
++            for row in ws.iter_rows(values_only=True):
++                data.append(list(row))
++            
++            # Create or get worksheet
++            if ws_name == wb.sheetnames[0]:
++                # First sheet already exists
++                wks = sh.sheet1
++                wks.title = ws_name
++            else:
++                wks = sh.add_worksheet(ws_name)
++            
++            # Update values
++            if data:
++                wks.update_values('A1', data)
++            
++            logger.info(f"Copied worksheet: {ws_name}")
++        
++        # Return URL
++        return sh.url
++        
++    except ImportError:
++        logger.warning("pygsheets not installed - Google Sheets upload disabled")
++        return None
++    except Exception as e:
++        logger.error(f"Failed to upload to Google Sheets: {e}")
++        return None
+
+diff --git a/backend/routes/report.py b/backend/routes/report_v2.py
+index abcdef1..2345678 100644
+--- a/backend/routes/report.py
++++ b/backend/routes/report.py
+@@ -7,13 +7,35 @@ import tempfile
+ from datetime import datetime, timedelta
+ from typing import Optional, List
+ import os
++import calendar
+ 
+ from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+-from fastapi.responses import StreamingResponse
++from fastapi.responses import StreamingResponse, JSONResponse
+ import io
+ 
+-from templates.pdf_reports import generate_executive_pdf, generate_detailed_pdf, save_pdf_report
++# Import utilities and check for WeasyPrint
++from templates.template_utils import WEASYPRINT_AVAILABLE
++
++# Conditional imports for PDF generation
++if WEASYPRINT_AVAILABLE:
++    from templates.pdf_reports import generate_executive_pdf, generate_detailed_pdf, save_pdf_report
++else:
++    # Create stub functions when WeasyPrint is not available
++    def generate_executive_pdf(*args, **kwargs):
++        raise NotImplementedError("PDF generation is not available. WeasyPrint is not installed.")
++    
++    def generate_detailed_pdf(*args, **kwargs):
++        raise NotImplementedError("PDF generation is not available. WeasyPrint is not installed.")
++    
++    def save_pdf_report(*args, **kwargs):
++        raise NotImplementedError("PDF generation is not available. WeasyPrint is not installed.")
++
+ from insights.llm_commentary import generate_commentary, generate_mock_commentary
+ from database import get_db_session
+ 
+@@ -33,6 +55,17 @@ async def generate_executive_report(
+     
+     Returns a downloadable PDF with key financial metrics and insights
+     """
++    if not WEASYPRINT_AVAILABLE:
++        return JSONResponse(
++            status_code=501,
++            content={
++                "status": "pdf_disabled",
++                "message": "PDF generation is not available. WeasyPrint is not installed.",
++                "alternatives": ["Use /report/commentary for JSON output", "Export from Excel template"]
++            }
++        )
++    
+     try:
+         # Validate dates
+         datetime.fromisoformat(start_date)
+@@ -72,6 +105,17 @@ async def generate_detailed_report(
+     
+     Returns a comprehensive PDF with all financial statements and analysis
+     """
++    if not WEASYPRINT_AVAILABLE:
++        return JSONResponse(
++            status_code=501,
++            content={
++                "status": "pdf_disabled",
++                "message": "PDF generation is not available. WeasyPrint is not installed.",
++                "alternatives": ["Use /report/commentary for JSON output", "Export from Excel template"]
++            }
++        )
++    
+     try:
+         # Validate dates
+         datetime.fromisoformat(start_date)
+@@ -109,11 +153,21 @@ async def generate_board_pack(
+     
+     Returns a board-ready PDF with executive summary, financial statements, and insights
+     """
++    if not WEASYPRINT_AVAILABLE:
++        return JSONResponse(
++            status_code=501,
++            content={
++                "status": "pdf_disabled",
++                "message": "PDF generation is not available. WeasyPrint is not installed.",
++                "alternatives": ["Use /report/commentary for JSON output", "Export from Excel template"]
++            }
++        )
++    
+     try:
+         # Parse period
+         year, month = period.split('-')
+         start_date = f"{year}-{month:0>2}-01"
+         
+         # Calculate end date (last day of month)
+-        import calendar
+         last_day = calendar.monthrange(int(year), int(month))[1]
+         end_date = f"{year}-{month:0>2}-{last_day:0>2}"
+@@ -206,25 +260,28 @@ async def get_report_templates():
+                 "typical_pages": "2-3",
+                 "audience": "Board, executives, investors",
+-                "includes": ["Key metrics", "Performance highlights", "Risk assessment", "Recommendations"]
++                "includes": ["Key metrics", "Performance highlights", "Risk assessment", "Recommendations"],
++                "pdf_available": WEASYPRINT_AVAILABLE
+             },
+             {
+                 "name": "detailed",
+                 "title": "Detailed Financial Report",
+                 "description": "Comprehensive financial analysis with all statements",
+                 "typical_pages": "8-12",
+                 "audience": "CFO, finance team, auditors",
+-                "includes": ["P&L", "Balance Sheet", "Cash Flow", "Trial Balance", "Variance Analysis"]
++                "includes": ["P&L", "Balance Sheet", "Cash Flow", "Trial Balance", "Variance Analysis"],
++                "pdf_available": WEASYPRINT_AVAILABLE
+             },
+             {
+                 "name": "board_pack",
+                 "title": "Board Pack",
+                 "description": "Monthly board-ready package combining executive and operational metrics",
+                 "typical_pages": "10-15",
+                 "audience": "Board of directors",
+-                "includes": ["Executive summary", "Financial statements", "KPIs", "Commentary", "Variance analysis"]
++                "includes": ["Executive summary", "Financial statements", "KPIs", "Commentary", "Variance analysis"],
++                "pdf_available": WEASYPRINT_AVAILABLE
+             }
+         ],
+         "customization_options": [
+             "Date range selection",
+             "Include/exclude variance analysis",
+             "Include/exclude AI commentary",
+             "Custom filename",
+             "Logo and branding (coming soon)"
+-        ]
++        ],
++        "pdf_generation_status": "available" if WEASYPRINT_AVAILABLE else "disabled"
+     }
+ 
+@@ -359,27 +416,23 @@ async def get_report_status():
+     # Check database connectivity
+     try:
+         with get_db_session() as db:
+-            db.execute("SELECT 1")
++            db.execute(text("SELECT 1"))
+             db_connected = True
+     except Exception:
+         db_connected = False
+     
+     # Check LLM configuration
+     llm_configured = bool(os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY"))
+     
+-    # Check PDF generation dependencies
+-    pdf_available = True
+-    try:
+-        import weasyprint
+-    except ImportError:
+-        pdf_available = False
+-    
+     return {
+-        "status": "healthy" if all([db_connected, pdf_available]) else "degraded",
++        "status": "healthy" if db_connected else "degraded",
+         "database_connected": db_connected,
+-        "pdf_generation_available": pdf_available,
++        "pdf_generation_available": WEASYPRINT_AVAILABLE,
+         "llm_configured": llm_configured,
+-        "supported_formats": ["pdf"],
++        "supported_formats": ["pdf"] if WEASYPRINT_AVAILABLE else ["json", "excel"],
+         "available_templates": ["executive", "detailed", "board_pack"],
+         "features": {
+             "ai_commentary": llm_configured,
+             "variance_analysis": True,
+             "custom_periods": True,
+-            "bulk_generation": True
++            "bulk_generation": True,
++            "pdf_export": WEASYPRINT_AVAILABLE,
++            "excel_export": True,
++            "json_export": True
+         },
+         "checked_at": datetime.now().isoformat()
+     }
+
+BLOCK TEMPLATE_FIXES COMPLETE

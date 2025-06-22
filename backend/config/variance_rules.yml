@@ -1,0 +1,236 @@
+# Variance Rules Configuration
+# Defines thresholds and triggers for automated alerts
+
+# Rule structure:
+# - metric_id: The metric to monitor
+# - comparison: budget, forecast, prior_period, or absolute
+# - threshold_type: percentage, absolute, or ratio
+# - threshold_value: The trigger point
+# - direction: above, below, or both
+# - severity: info, warning, critical
+# - cooldown_hours: Minimum time between alerts
+
+variance_rules:
+  # Revenue variances
+  - metric_id: revenue
+    comparison: budget
+    threshold_type: percentage
+    threshold_value: -5  # 5% below budget
+    direction: below
+    severity: warning
+    message: "Revenue is {variance_pct:.1f}% below budget"
+    cooldown_hours: 24
+    
+  - metric_id: revenue
+    comparison: prior_period
+    threshold_type: percentage
+    threshold_value: -10  # 10% below prior month
+    direction: below
+    severity: critical
+    message: "Revenue declined {variance_pct:.1f}% month-over-month"
+    cooldown_hours: 24
+    
+  # Cost variances
+  - metric_id: cogs
+    comparison: budget
+    threshold_type: percentage
+    threshold_value: 10  # 10% above budget
+    direction: above
+    severity: warning
+    message: "COGS is {variance_pct:.1f}% above budget"
+    cooldown_hours: 24
+    
+  - metric_id: opex
+    comparison: budget
+    threshold_type: percentage
+    threshold_value: 5  # 5% above budget
+    direction: above
+    severity: warning
+    message: "Operating expenses {variance_pct:.1f}% over budget"
+    cooldown_hours: 24
+    
+  # Profitability variances
+  - metric_id: gross_margin
+    comparison: absolute
+    threshold_type: absolute
+    threshold_value: 60  # Below 60%
+    direction: below
+    severity: warning
+    message: "Gross margin at {current_value:.1f}%, below 60% threshold"
+    cooldown_hours: 48
+    
+  - metric_id: ebitda_margin
+    comparison: prior_period
+    threshold_type: absolute
+    threshold_value: -5  # 5 percentage points decline
+    direction: below
+    severity: critical
+    message: "EBITDA margin declined {variance_abs:.1f} percentage points"
+    cooldown_hours: 24
+    
+  # Cash and burn variances
+  - metric_id: burn_rate
+    comparison: forecast
+    threshold_type: percentage
+    threshold_value: 20  # 20% above forecast
+    direction: above
+    severity: critical
+    message: "Burn rate {variance_pct:.1f}% above forecast"
+    cooldown_hours: 12
+    
+  - metric_id: runway_months
+    comparison: absolute
+    threshold_type: absolute
+    threshold_value: 12  # Less than 12 months
+    direction: below
+    severity: critical
+    message: "Only {current_value:.1f} months of runway remaining"
+    cooldown_hours: 168  # Weekly
+    
+  - metric_id: runway_months
+    comparison: absolute
+    threshold_type: absolute
+    threshold_value: 6  # Less than 6 months
+    direction: below
+    severity: critical
+    message: "⚠️ URGENT: Only {current_value:.1f} months of runway"
+    cooldown_hours: 24
+    
+  # SaaS metric variances
+  - metric_id: mrr
+    comparison: forecast
+    threshold_type: percentage
+    threshold_value: -10  # 10% below forecast
+    direction: below
+    severity: warning
+    message: "MRR {variance_pct:.1f}% below forecast"
+    cooldown_hours: 24
+    
+  - metric_id: churn_rate
+    comparison: absolute
+    threshold_type: absolute
+    threshold_value: 5  # Above 5%
+    direction: above
+    severity: warning
+    message: "Churn rate at {current_value:.1f}%, above 5% threshold"
+    cooldown_hours: 48
+    
+  - metric_id: net_retention_rate
+    comparison: absolute
+    threshold_type: absolute
+    threshold_value: 100  # Below 100%
+    direction: below
+    severity: critical
+    message: "Net retention at {current_value:.1f}%, indicating contraction"
+    cooldown_hours: 24
+    
+  # Headcount variances
+  - metric_id: total_headcount
+    comparison: budget
+    threshold_type: percentage
+    threshold_value: 10  # 10% above budget
+    direction: above
+    severity: info
+    message: "Headcount {variance_pct:.1f}% above budget"
+    cooldown_hours: 168
+    
+  - metric_id: payroll_as_pct_revenue
+    comparison: absolute
+    threshold_type: absolute
+    threshold_value: 50  # Above 50%
+    direction: above
+    severity: warning
+    message: "Payroll costs are {current_value:.1f}% of revenue"
+    cooldown_hours: 168
+    
+  # Productivity variances
+  - metric_id: revenue_per_fte
+    comparison: prior_period
+    threshold_type: percentage
+    threshold_value: -10  # 10% decline
+    direction: below
+    severity: info
+    message: "Revenue per FTE declined {variance_pct:.1f}%"
+    cooldown_hours: 168
+    
+  # CAC/LTV variances
+  - metric_id: ltv_to_cac_ratio
+    comparison: absolute
+    threshold_type: absolute
+    threshold_value: 3  # Below 3:1
+    direction: below
+    severity: warning
+    message: "LTV:CAC ratio at {current_value:.1f}x, below 3x target"
+    cooldown_hours: 168
+    
+  - metric_id: months_to_recover_cac
+    comparison: absolute
+    threshold_type: absolute
+    threshold_value: 18  # Above 18 months
+    direction: above
+    severity: warning
+    message: "CAC payback period at {current_value:.1f} months"
+    cooldown_hours: 168
+
+# Compound rules (multiple conditions)
+compound_rules:
+  - name: "Growth efficiency alert"
+    conditions:
+      - metric_id: revenue_growth_yoy
+        comparison: absolute
+        threshold_type: absolute
+        threshold_value: 20  # Below 20% growth
+        direction: below
+      - metric_id: burn_rate
+        comparison: budget
+        threshold_type: percentage
+        threshold_value: 10  # Above budget
+        direction: above
+    severity: critical
+    message: "Growth slowing to {revenue_growth_yoy:.1f}% while burn exceeds budget"
+    cooldown_hours: 48
+    
+  - name: "Unit economics deterioration"
+    conditions:
+      - metric_id: gross_margin
+        comparison: prior_period
+        threshold_type: absolute
+        threshold_value: -2  # 2pp decline
+        direction: below
+      - metric_id: cac
+        comparison: prior_period
+        threshold_type: percentage
+        threshold_value: 20  # 20% increase
+        direction: above
+    severity: warning
+    message: "Unit economics deteriorating: margins down, CAC up"
+    cooldown_hours: 168
+
+# Alert channels configuration
+alert_channels:
+  - type: database  # Always enabled
+    enabled: true
+    
+  - type: email
+    enabled: false  # Will be enabled later
+    recipients:
+      - finance@company.com
+      - cfo@company.com
+    
+  - type: slack
+    enabled: false  # Will be enabled later
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    channel: "#finance-alerts"
+    
+  - type: webhook
+    enabled: false
+    url: "${ALERT_WEBHOOK_URL}"
+    headers:
+      Authorization: "Bearer ${ALERT_WEBHOOK_TOKEN}"
+
+# Global settings
+settings:
+  enabled: true
+  check_frequency_minutes: 60  # How often to check rules
+  lookback_periods: 3  # Number of periods to analyze for trends
+  forecast_confidence_interval: 0.8  # 80% confidence for forecast comparisons

@@ -1,0 +1,184 @@
+# QuickBooks to Template Field Mapping
+# This file maps QuickBooks API fields to Excel template columns
+# Update here when QuickBooks field names change
+
+# General Ledger mapping
+gl_fields:
+  # QuickBooks field -> Template column
+  TxnDate: Date
+  AccountRef.value: Account
+  AccountRef.name: Account_Name
+  Amount: Amount
+  PostingType: Type
+  Description: Description
+  ClassRef.name: Class
+  DepartmentRef.name: Department
+  EntityRef.name: Entity
+  CustomerRef.name: Customer
+  VendorRef.name: Vendor
+  
+# Account type mappings for signed amounts
+account_types:
+  # Pattern matching for account classification
+  assets:
+    ranges:
+      - start: 1000
+        end: 1999
+    keywords:
+      - "Cash"
+      - "Accounts Receivable"
+      - "Inventory"
+      - "Prepaid"
+  
+  liabilities:
+    ranges:
+      - start: 2000
+        end: 2999
+    keywords:
+      - "Accounts Payable"
+      - "Accrued"
+      - "Loan"
+      - "Note Payable"
+  
+  equity:
+    ranges:
+      - start: 3000
+        end: 3999
+    keywords:
+      - "Capital"
+      - "Retained Earnings"
+      - "Common Stock"
+      - "Distributions"
+  
+  revenue:
+    ranges:
+      - start: 4000
+        end: 4999
+    keywords:
+      - "Sales"
+      - "Revenue"
+      - "Income"
+  
+  expenses:
+    ranges:
+      - start: 5000
+        end: 7999
+    keywords:
+      - "Expense"
+      - "Cost"
+      - "COGS"
+
+# Chart of Accounts mapping
+coa_mapping:
+  # Template report categories
+  categories:
+    # P&L Categories
+    "Revenue":
+      accounts: ["4000-4999"]
+      description: "All revenue accounts"
+    
+    "Cost of Sales":
+      accounts: ["5000-5099"]
+      description: "Direct costs and COGS"
+    
+    "Operating Expenses":
+      accounts: ["5100-5999"]
+      description: "OpEx excluding COGS"
+    
+    "Other Income":
+      accounts: ["7000-7099"]
+      description: "Non-operating income"
+    
+    "Other Expenses":
+      accounts: ["7100-7999"]
+      description: "Non-operating expenses"
+    
+    # Balance Sheet Categories
+    "Current Assets":
+      accounts: ["1000-1499"]
+      description: "Cash, AR, inventory"
+    
+    "Fixed Assets":
+      accounts: ["1500-1999"]
+      description: "PP&E and long-term assets"
+    
+    "Current Liabilities":
+      accounts: ["2000-2499"]
+      description: "AP and short-term debt"
+    
+    "Long-term Liabilities":
+      accounts: ["2500-2999"]
+      description: "Long-term debt"
+    
+    "Equity":
+      accounts: ["3000-3999"]
+      description: "All equity accounts"
+
+# Transaction type mappings
+transaction_types:
+  Invoice:
+    gl_impact:
+      - debit: "Accounts Receivable"
+        credit: "Revenue"
+    template_sheet: "DATA_GL"
+  
+  Bill:
+    gl_impact:
+      - debit: "Expense"
+        credit: "Accounts Payable"
+    template_sheet: "DATA_GL"
+  
+  Payment:
+    gl_impact:
+      - debit: "Cash"
+        credit: "Accounts Receivable"
+    template_sheet: "DATA_GL"
+  
+  BillPayment:
+    gl_impact:
+      - debit: "Accounts Payable"
+        credit: "Cash"
+    template_sheet: "DATA_GL"
+  
+  JournalEntry:
+    gl_impact: "Various"
+    template_sheet: "DATA_GL"
+
+# Department mappings
+departments:
+  # QuickBooks Class/Location -> Template Department
+  "Sales - US": "Sales"
+  "Sales - International": "Sales"
+  "Marketing": "Marketing"
+  "R&D": "Engineering"
+  "Product Development": "Engineering"
+  "General Admin": "G&A"
+  "Finance": "G&A"
+  "HR": "G&A"
+  "Operations": "Operations"
+
+# Entity mappings
+entities:
+  # QuickBooks Location -> Template Entity
+  "United States": "US Corp"
+  "United Kingdom": "UK Ltd"
+  "Germany": "DE GmbH"
+  "": "US Corp"  # Default
+
+# Custom field mappings for specific templates
+template_specific:
+  "3_statement_model":
+    extra_fields:
+      - qb_field: "Memo"
+        template_field: "Notes"
+      - qb_field: "DocNumber"
+        template_field: "Reference"
+  
+  "kpi_dashboard":
+    metrics:
+      - name: "New Customers"
+        source: "Customer.count(distinct) where created_date in period"
+      - name: "Orders"
+        source: "Invoice.count() where status = 'Paid'"
+      - name: "Revenue"
+        source: "Invoice.Line.sum(Amount) where DetailType = 'SalesItemLineDetail'"
