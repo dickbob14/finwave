@@ -1,3 +1,102 @@
-# Python cache
+# Environment files
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
+# Database
+*.db
+*.duckdb
+*.duckdb.wal
+dev.duckdb
+prod.duckdb
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node.js / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.next/
+out/
+build/
+dist/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Secrets and credentials
+*.pem
+*.key
+*.cert
+*.crt
+.qb_token.json
+*_token.json
+credentials/
+secrets/
+
+# Generated files
+backend/assets/populated_*
+backend/templates/populated_*
+*.xlsx#
+~$*.xlsx
+backend/static/reports/
+
+# Uploaded files
+uploads/
+static/uploads/
+static/logos/
+
+# Analysis output
+*_analysis.json
+*_deep_analysis.json
+
+# Local development
+local/
+scratch/
