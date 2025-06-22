@@ -1,30 +1,37 @@
 {
   "brand": {
     "company_name": "Craig's Design & Landscaping Services",
-    "logo_url": "/static/logos/craigs-landscaping.png"
+    "logo_url": "/static/logos/finwave-logo.svg"
   },
   "colors": {
-    "primary": "#4F46E5",
-    "primary_dark": "#4338CA",
-    "primary_light": "#6366F1",
-    "secondary": "#10B981",
-    "secondary_dark": "#059669",
-    "secondary_light": "#34D399",
-    "accent": "#F59E0B",
-    "background": "#FFFFFF",
-    "surface": "#F9FAFB",
-    "text": "#111827",
-    "text_muted": "#6B7280",
+    "primary": "#1E2A38",
+    "primary_dark": "#121B28",
+    "primary_light": "#475F84",
+    "secondary": "#2DB3A6",
+    "secondary_dark": "#1D6B64",
+    "secondary_light": "#69C9C3",
+    "accent": "#5B5BF2",
+    "background": "#F9FAFB",
+    "surface": "#FFFFFF",
+    "text": "#1E2A38",
+    "text_muted": "#7587A3",
     "border": "#E5E7EB",
     "success": "#10B981",
     "warning": "#F59E0B",
-    "error": "#EF4444",
-    "info": "#3B82F6"
+    "error": "#F87171",
+    "info": "#5B5BF2",
+    "navy": "#1E2A38",
+    "teal": "#2DB3A6",
+    "indigo": "#5B5BF2",
+    "emerald": "#10B981",
+    "coral": "#F87171",
+    "cloud": "#F9FAFB",
+    "mist": "#E5E7EB"
   },
   "typography": {
     "font_family": "Inter, system-ui, -apple-system, sans-serif",
     "heading_font": "Inter, system-ui, -apple-system, sans-serif",
-    "mono_font": "Menlo, Monaco, Consolas, monospace"
+    "mono_font": "Space Grotesk, Roboto Mono, monospace"
   },
   "spacing": {
     "unit": 4,

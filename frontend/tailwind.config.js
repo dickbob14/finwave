@@ -23,45 +23,68 @@ module.exports = {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        // FinWave Brand Colors
         primary: {
-          DEFAULT: "#4F46E5", // Indigo
+          DEFAULT: "#1E2A38", // Deep Navy
           foreground: "#FFFFFF",
-          50: "#EEF2FF",
-          100: "#E0E7FF",
-          200: "#C7D2FE",
-          300: "#A5B4FC",
-          400: "#818CF8",
-          500: "#6366F1",
-          600: "#4F46E5",
-          700: "#4338CA",
-          800: "#3730A3",
-          900: "#312E81",
+          50: "#E8EBF0",
+          100: "#D1D7E0",
+          200: "#A3AFC1",
+          300: "#7587A3",
+          400: "#475F84",
+          500: "#1E2A38", // Deep Navy
+          600: "#182330",
+          700: "#121B28",
+          800: "#0C1420",
+          900: "#060C18",
         },
         secondary: {
-          DEFAULT: "#10B981", // Emerald
+          DEFAULT: "#2DB3A6", // Ocean Teal
           foreground: "#FFFFFF",
-          50: "#ECFDF5",
-          100: "#D1FAE5",
-          200: "#A7F3D0",
-          300: "#6EE7B7",
-          400: "#34D399",
-          500: "#10B981",
-          600: "#059669",
-          700: "#047857",
-          800: "#065F46",
-          900: "#064E3B",
-        },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
+          50: "#E6F6F5",
+          100: "#CDEDEB",
+          200: "#9BDBD7",
+          300: "#69C9C3",
+          400: "#37B7AF",
+          500: "#2DB3A6",
+          600: "#258F85",
+          700: "#1D6B64",
+          800: "#154743",
+          900: "#0D2421",
         },
         accent: {
-          DEFAULT: "#F59E0B", // Amber
+          DEFAULT: "#5B5BF2", // Electric Indigo
           foreground: "#FFFFFF",
+          50: "#ECECFE",
+          100: "#D9D9FC",
+          200: "#B3B3FA",
+          300: "#8D8DF7",
+          400: "#6767F5",
+          500: "#5B5BF2",
+          600: "#2E2EE9",
+          700: "#2323BD",
+          800: "#181890",
+          900: "#0D0D64",
+        },
+        success: "#10B981", // Emerald Tint
+        warning: "#F59E0B",
+        error: "#F87171", // Coral Red
+        info: "#5B5BF2",
+        // Neutral colors
+        navy: "#1E2A38",
+        teal: "#2DB3A6",
+        indigo: "#5B5BF2",
+        emerald: "#10B981",
+        coral: "#F87171",
+        cloud: "#F9FAFB",
+        mist: "#E5E7EB",
+        destructive: {
+          DEFAULT: "#F87171",
+          foreground: "#FFFFFF",
+        },
+        muted: {
+          DEFAULT: "#E5E7EB",
+          foreground: "#6B7280",
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",
@@ -71,10 +94,15 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        success: "#10B981",
-        warning: "#F59E0B",
-        error: "#EF4444",
-        info: "#3B82F6",
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        display: ['Satoshi', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['Space Grotesk', 'Roboto Mono', 'monospace'],
+      },
+      backgroundImage: {
+        'gradient-primary': 'linear-gradient(135deg, #2DB3A6 0%, #5B5BF2 100%)',
+        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
       },
       borderRadius: {
         lg: "var(--radius)",

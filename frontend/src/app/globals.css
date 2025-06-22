@@ -1,26 +1,119 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: 0 0% 98%; /* Cloud White */
+    --foreground: 210 24% 16%; /* Deep Navy */
+    
+    --card: 0 0% 100%;
+    --card-foreground: 210 24% 16%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 24% 16%;
+    
+    --primary: 210 24% 16%; /* Deep Navy */
+    --primary-foreground: 0 0% 98%;
+    
+    --secondary: 174 48% 44%; /* Ocean Teal */
+    --secondary-foreground: 0 0% 98%;
+    
+    --muted: 210 6% 91%; /* Mist Gray */
+    --muted-foreground: 215 4% 47%;
+    
+    --accent: 240 84% 67%; /* Electric Indigo */
+    --accent-foreground: 0 0% 98%;
+    
+    --destructive: 0 65% 72%; /* Coral Red */
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 214 7% 91%;
+    --input: 214 7% 91%;
+    --ring: 174 48% 44%;
+    
+    --radius: 0.5rem;
+  }
+  
+  .dark {
+    --background: 210 24% 8%;
+    --foreground: 0 0% 98%;
+    
+    --card: 210 24% 12%;
+    --card-foreground: 0 0% 98%;
+    
+    --popover: 210 24% 12%;
+    --popover-foreground: 0 0% 98%;
+    
+    --primary: 174 48% 44%; /* Ocean Teal in dark mode */
+    --primary-foreground: 0 0% 98%;
+    
+    --secondary: 240 84% 67%; /* Electric Indigo in dark mode */
+    --secondary-foreground: 0 0% 98%;
+    
+    --muted: 210 15% 20%;
+    --muted-foreground: 215 20% 65%;
+    
+    --accent: 240 84% 67%;
+    --accent-foreground: 0 0% 98%;
+    
+    --destructive: 0 65% 72%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 210 15% 20%;
+    --input: 210 15% 20%;
+    --ring: 174 48% 44%;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-cloud text-navy;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    @apply font-semibold text-navy;
+  }
+  
+  .font-display {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  
+  .font-mono {
+    font-family: 'Space Grotesk', 'Roboto Mono', monospace;
+  }
+}
+
+/* Custom gradients */
+.bg-gradient-primary {
+  background: linear-gradient(135deg, #2DB3A6 0%, #5B5BF2 100%);
+}
+
+/* Custom shadow for cards */
+.card-shadow {
+  box-shadow: 0 1px 3px 0 rgba(30, 42, 56, 0.08), 0 1px 2px 0 rgba(30, 42, 56, 0.06);
+}
+
+.card-shadow-hover {
+  box-shadow: 0 10px 15px -3px rgba(30, 42, 56, 0.1), 0 4px 6px -2px rgba(30, 42, 56, 0.05);
+}
+
+/* Custom animations */
+@keyframes wave {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-wave {
+  animation: wave 3s ease-in-out infinite;
 }
