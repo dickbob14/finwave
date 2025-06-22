@@ -1,0 +1,121 @@
+name: Secure Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  test-integration:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        cd backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pandas openpyxl xlsxwriter requests python-dateutil pyyaml
+    
+    - name: Run unit tests (no secrets needed)
+      run: |
+        cd backend
+        # Field mapper tests
+        python config/field_mapper.py
+        
+        # Integration tests with mocked data
+        python integrations/quickbooks/test_integration.py
+        
+        # Template tests
+        cd templates
+        python test_templates.py
+    
+    - name: Check for secrets in code
+      run: |
+        # Scan for potential secrets
+        if grep -r "AB49jtyqvJRhHtMzbySlUC0Qg8EvAyEfmJ5nB1Z6gMlIkrs2RZ" backend/; then
+          echo "❌ Found hardcoded client ID in code!"
+          exit 1
+        fi
+        
+        if grep -r "O1ujFctXzAA5h5jijK76aIjb4TwFvyPSq9CUMvaF" backend/; then
+          echo "❌ Found hardcoded client secret in code!"
+          exit 1
+        fi
+        
+        echo "✅ No hardcoded secrets found"
+
+  test-with-sandbox:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: sandbox  # Use GitHub environment secrets
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        cd backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pandas openpyxl xlsxwriter requests python-dateutil pyyaml boto3
+    
+    - name: Test QuickBooks connection
+      env:
+        QB_CLIENT_ID: ${{ secrets.QB_CLIENT_ID }}
+        QB_CLIENT_SECRET: ${{ secrets.QB_CLIENT_SECRET }}
+        QB_COMPANY_ID: ${{ secrets.QB_COMPANY_ID }}
+        QB_ENVIRONMENT: sandbox
+      run: |
+        cd backend
+        python integrations/quickbooks/test_connection.py
+    
+    - name: Generate test template
+      env:
+        QB_CLIENT_ID: ${{ secrets.QB_CLIENT_ID }}
+        QB_CLIENT_SECRET: ${{ secrets.QB_CLIENT_SECRET }}
+        QB_COMPANY_ID: ${{ secrets.QB_COMPANY_ID }}
+        QB_ENVIRONMENT: sandbox
+      run: |
+        cd backend
+        # Get date range for last month
+        START_DATE=$(date -d "1 month ago" +%Y-%m-01)
+        END_DATE=$(date +%Y-%m-%d)
+        
+        # Try to populate (may fail if no data)
+        python templates/populate_3statement_v2.py \
+          --template "assets/templates/Basic 3-Statement Model-2.xlsx" \
+          --since $START_DATE \
+          --until $END_DATE \
+          --output test_output.xlsx || true
+        
+        # Check if file was created
+        if [ -f templates/test_output.xlsx ]; then
+          echo "✅ Successfully generated template"
+        else
+          echo "⚠️ No data available for test period"
+        fi

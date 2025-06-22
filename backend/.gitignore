@@ -1,0 +1,100 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+venv_etl/
+.venv/
+env/
+ENV/
+.virtualenv/
+
+# Environment files - NEVER COMMIT THESE!
+.env
+.env.*
+!.env.example
+
+# OAuth tokens - CRITICAL TO EXCLUDE!
+qb_tokens.json
+*_tokens.json
+oauth_tokens/
+
+# Google service account keys
+*-service-account*.json
+google-sheets-*.json
+credentials/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+coverage.xml
+*.cover
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+finwave.db
+test_finwave.db
+
+# Temporary files
+*.tmp
+*.temp
+*.xlsx
+*.csv
+*.pdf
+!templates/files/*.xlsx  # Keep template files
+
+# Local data
+populated/
+templates/populated/
+templates/logs/
+templates/template_registry.json
+
+# AWS/Cloud credentials
+.aws/
+.boto
+
+# Jupyter
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db

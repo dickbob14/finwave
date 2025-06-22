@@ -1,0 +1,26 @@
+# FinWave Scheduler Crontab Configuration
+# Copy this to your system crontab or user crontab
+#
+# Example: crontab -e
+# Then paste these lines (adjust paths as needed)
+
+# Set environment variables
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+FINWAVE_HOME=/path/to/finwave/backend
+PYTHONPATH=/path/to/finwave/backend
+
+# Variance checks - Every hour at :15
+15 * * * * cd $FINWAVE_HOME && venv/bin/python scheduler/run_jobs.py variance_check >> logs/variance.log 2>&1
+
+# Forecast updates - Daily at 2am
+0 2 * * * cd $FINWAVE_HOME && venv/bin/python scheduler/run_jobs.py forecast_update >> logs/forecast.log 2>&1
+
+# Insight refresh - Daily at 6am
+0 6 * * * cd $FINWAVE_HOME && venv/bin/python scheduler/run_jobs.py insight_refresh >> logs/insights.log 2>&1
+
+# All jobs - Weekly on Sunday at 3am (optional)
+0 3 * * 0 cd $FINWAVE_HOME && venv/bin/python scheduler/run_jobs.py all >> logs/all_jobs.log 2>&1
+
+# Alternative: Using systemd timers (modern Linux)
+# Create /etc/systemd/system/finwave-variance.timer and finwave-variance.service

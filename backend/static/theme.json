@@ -1,0 +1,36 @@
+{
+  "brand": {
+    "company_name": "Craig's Design & Landscaping Services",
+    "logo_url": "/static/logos/craigs-landscaping.png"
+  },
+  "colors": {
+    "primary": "#4F46E5",
+    "primary_dark": "#4338CA",
+    "primary_light": "#6366F1",
+    "secondary": "#10B981",
+    "secondary_dark": "#059669",
+    "secondary_light": "#34D399",
+    "accent": "#F59E0B",
+    "background": "#FFFFFF",
+    "surface": "#F9FAFB",
+    "text": "#111827",
+    "text_muted": "#6B7280",
+    "border": "#E5E7EB",
+    "success": "#10B981",
+    "warning": "#F59E0B",
+    "error": "#EF4444",
+    "info": "#3B82F6"
+  },
+  "typography": {
+    "font_family": "Inter, system-ui, -apple-system, sans-serif",
+    "heading_font": "Inter, system-ui, -apple-system, sans-serif",
+    "mono_font": "Menlo, Monaco, Consolas, monospace"
+  },
+  "spacing": {
+    "unit": 4,
+    "small": 8,
+    "medium": 16,
+    "large": 24,
+    "xlarge": 32
+  }
+}

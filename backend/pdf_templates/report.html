@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}{{ company_name }} - Board Report - {{ report_period }}{% endblock %}
+
+{% block content %}
+<!-- Cover Page -->
+<div class="cover-page">
+    {% if logo_url %}
+    <img src="{{ logo_url }}" alt="{{ company_name }}" class="cover-logo">
+    {% endif %}
+    
+    <h1 class="cover-title">Board Report</h1>
+    <h2 class="cover-subtitle">{{ company_name }}</h2>
+    <p class="cover-date">{{ report_period }}</p>
+</div>
+
+<!-- Executive Summary -->
+<section class="executive-summary no-break">
+    <h1>Executive Summary</h1>
+    
+    <div class="key-metrics">
+        {% for metric in key_metrics %}
+        <div class="key-metric">
+            <div class="metric-value">
+                {{ metric.formatted_value }}
+                {% if metric.change %}
+                <span class="metric-change {{ 'positive' if metric.change > 0 else 'negative' }}">
+                    {{ "{:+.1f}".format(metric.change) }}%
+                </span>
+                {% endif %}
+            </div>
+            <div class="metric-label">{{ metric.label }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="summary-narrative mt-2">
+        {{ executive_summary | safe }}
+    </div>
+</section>
+
+<!-- KPI Dashboard -->
+<section class="page-break">
+    <h1>Key Performance Indicators</h1>
+    
+    {% for category, metrics in kpi_dashboard.items() %}
+    <div class="kpi-section no-break">
+        <h2>{{ category }}</h2>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th class="number">{{ periods[-3] }}</th>
+                    <th class="number">{{ periods[-2] }}</th>
+                    <th class="number">{{ periods[-1] }}</th>
+                    <th class="number">Trend</th>
+                    <th class="number">Target</th>
+                    <th class="number">Variance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for metric in metrics %}
+                <tr>
+                    <td>{{ metric.name }}</td>
+                    <td class="number">{{ metric.values[-3] | format_number }}</td>
+                    <td class="number">{{ metric.values[-2] | format_number }}</td>
+                    <td class="number">{{ metric.values[-1] | format_number }}</td>
+                    <td class="number">
+                        <span class="{{ 'positive' if metric.trend > 0 else 'negative' }}">
+                            {{ "{:+.1f}%".format(metric.trend) }}
+                        </span>
+                    </td>
+                    <td class="number">{{ metric.target | format_number }}</td>
+                    <td class="number">
+                        <span class="{{ 'positive' if metric.variance > 0 else 'negative' }}">
+                            {{ "{:+.1f}%".format(metric.variance) }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+    
+    {% if kpi_insights %}
+    <div class="insights-box mt-2">
+        <h3>Key Insights</h3>
+        {{ kpi_insights | safe }}
+    </div>
+    {% endif %}
+</section>
+
+<!-- Financial Statements -->
+<section class="page-break">
+    <h1>Financial Statements</h1>
+    
+    <!-- Income Statement -->
+    <div class="financial-statement no-break">
+        <h2>Income Statement</h2>
+        <p class="text-muted">For the period ending {{ periods[-1] }}</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Line Item</th>
+                    {% for period in periods[-6:] %}
+                    <th class="number">{{ period }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in income_statement %}
+                <tr class="{{ 'total-row' if row.is_total else '' }}">
+                    <td style="padding-left: {{ row.indent * 20 }}px">{{ row.label }}</td>
+                    {% for value in row.values[-6:] %}
+                    <td class="number">{{ value | format_currency }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Revenue Trend Chart -->
+    {% if charts.revenue_trend %}
+    <div class="chart-container">
+        <img src="data:image/png;base64,{{ charts.revenue_trend }}" alt="Revenue Trend" class="chart-image">
+        <p class="chart-caption">Figure 1: Monthly Revenue Trend</p>
+    </div>
+    {% endif %}
+    
+    <!-- Balance Sheet -->
+    <div class="financial-statement no-break page-break">
+        <h2>Balance Sheet</h2>
+        <p class="text-muted">As of {{ periods[-1] }}</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Line Item</th>
+                    <th class="number">{{ periods[-2] }}</th>
+                    <th class="number">{{ periods[-1] }}</th>
+                    <th class="number">Change</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in balance_sheet %}
+                <tr class="{{ 'total-row' if row.is_total else '' }}">
+                    <td style="padding-left: {{ row.indent * 20 }}px">{{ row.label }}</td>
+                    <td class="number">{{ row.prior | format_currency }}</td>
+                    <td class="number">{{ row.current | format_currency }}</td>
+                    <td class="number">
+                        {% if row.change %}
+                        <span class="{{ 'positive' if row.change > 0 else 'negative' }}">
+                            {{ "{:+.1f}%".format(row.change) }}
+                        </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Cash Flow Statement -->
+    <div class="financial-statement no-break">
+        <h2>Cash Flow Statement</h2>
+        <p class="text-muted">For the period ending {{ periods[-1] }}</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Line Item</th>
+                    {% for period in periods[-3:] %}
+                    <th class="number">{{ period }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in cash_flow %}
+                <tr class="{{ 'total-row' if row.is_total else '' }}">
+                    <td style="padding-left: {{ row.indent * 20 }}px">{{ row.label }}</td>
+                    {% for value in row.values[-3:] %}
+                    <td class="number">{{ value | format_currency }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- Variance Analysis -->
+{% if variance_alerts %}
+<section class="page-break">
+    <h1>Variance Analysis</h1>
+    
+    <div class="variance-summary">
+        <p>The following variances require management attention:</p>
+        
+        {% for alert in variance_alerts %}
+        <div class="alert-box {{ alert.severity }}">
+            <div class="alert-title">{{ alert.metric_name }}</div>
+            <p>{{ alert.message }}</p>
+            <p class="text-muted mt-1">
+                Current: {{ alert.current_value | format_number }} | 
+                Expected: {{ alert.expected_value | format_number }} | 
+                Variance: {{ "{:+.1f}%".format(alert.variance_pct) }}
+            </p>
+        </div>
+        {% endfor %}
+    </div>
+    
+    {% if variance_insights %}
+    <div class="insights-box mt-2">
+        <h3>Management Commentary</h3>
+        {{ variance_insights | safe }}
+    </div>
+    {% endif %}
+</section>
+{% endif %}
+
+<!-- Forecast & Outlook -->
+{% if forecast_data %}
+<section class="page-break">
+    <h1>Forecast & Outlook</h1>
+    
+    <div class="forecast-summary">
+        <h2>12-Month Forecast</h2>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    {% for period in forecast_periods[:6] %}
+                    <th class="number">{{ period }}</th>
+                    {% endfor %}
+                    <th class="number">12M Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for metric in forecast_metrics %}
+                <tr>
+                    <td>{{ metric.name }}</td>
+                    {% for value in metric.forecast_values[:6] %}
+                    <td class="number">{{ value | format_number }}</td>
+                    {% endfor %}
+                    <td class="number">{{ metric.total_12m | format_number }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Runway Analysis -->
+    {% if runway_analysis %}
+    <div class="runway-analysis mt-3">
+        <h2>Cash Runway Analysis</h2>
+        <div class="key-metric">
+            <div class="metric-value">{{ runway_analysis.months }} months</div>
+            <div class="metric-label">Runway at current burn rate</div>
+        </div>
+        
+        <p class="mt-2">{{ runway_analysis.narrative | safe }}</p>
+    </div>
+    {% endif %}
+    
+    <!-- Scenario Analysis -->
+    {% if scenarios %}
+    <div class="scenario-analysis mt-3">
+        <h2>Scenario Analysis</h2>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Scenario</th>
+                    <th class="number">Revenue Impact</th>
+                    <th class="number">EBITDA Impact</th>
+                    <th class="number">Runway Impact</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for scenario in scenarios %}
+                <tr>
+                    <td>{{ scenario.name }}</td>
+                    <td class="number">{{ "{:+.1f}%".format(scenario.revenue_impact) }}</td>
+                    <td class="number">{{ "{:+.1f}%".format(scenario.ebitda_impact) }}</td>
+                    <td class="number">{{ "{:+.1f}".format(scenario.runway_impact) }} months</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</section>
+{% endif %}
+
+<!-- Appendix -->
+<section class="page-break">
+    <h1>Appendix</h1>
+    
+    <!-- Methodology -->
+    <div class="methodology">
+        <h2>Methodology & Data Sources</h2>
+        <ul>
+            <li><strong>Financial Data:</strong> Sourced from {{ data_sources.accounting }} as of {{ data_sources.last_sync }}</li>
+            <li><strong>CRM Data:</strong> {{ data_sources.crm }} pipeline and customer metrics</li>
+            <li><strong>Payroll Data:</strong> {{ data_sources.payroll }} for headcount and compensation</li>
+            <li><strong>Forecast Method:</strong> {{ forecast_methodology }}</li>
+            <li><strong>Variance Thresholds:</strong> Critical >10%, Warning >5%</li>
+        </ul>
+    </div>
+    
+    <!-- Definitions -->
+    <div class="definitions mt-3">
+        <h2>Key Metric Definitions</h2>
+        <dl>
+            {% for term in metric_definitions %}
+            <dt><strong>{{ term.name }}:</strong></dt>
+            <dd>{{ term.definition }}</dd>
+            {% endfor %}
+        </dl>
+    </div>
+    
+    <!-- Contact -->
+    <div class="report-footer">
+        <p class="text-center">
+            This report was generated by FinWave on {{ generation_date }}.<br>
+            For questions, contact {{ contact_email }}.
+        </p>
+    </div>
+</section>
+
+{% endblock %}

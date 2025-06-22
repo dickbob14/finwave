@@ -1,0 +1,58 @@
+name: Test Templates
+
+on:
+  push:
+    paths:
+      - 'backend/templates/**'
+      - '.github/workflows/test-templates.yml'
+  pull_request:
+    paths:
+      - 'backend/templates/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        cd backend
+        python -m pip install --upgrade pip
+        pip install pandas openpyxl xlsxwriter requests python-dateutil
+    
+    - name: Run template tests
+      run: |
+        cd backend/templates
+        python3 test_templates.py
+    
+    - name: Generate template
+      run: |
+        cd backend
+        make templates
+    
+    - name: Upload template artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: excel-template
+        path: backend/assets/templates/finwave_board_pack.xlsx
+        retention-days: 7
+    
+    - name: Check template exists
+      run: |
+        test -f backend/assets/templates/finwave_board_pack.xlsx || exit 1
+        echo "✅ Template generated successfully"

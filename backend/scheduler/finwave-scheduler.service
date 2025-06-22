@@ -1,0 +1,27 @@
+[Unit]
+Description=FinWave Template Scheduler
+After=network.target
+
+[Service]
+Type=simple
+User=finwave
+WorkingDirectory=/opt/finwave/backend
+Environment="PATH=/opt/finwave/backend/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/opt/finwave/backend"
+
+# Load environment from file
+EnvironmentFile=/opt/finwave/backend/.env
+
+# Run the scheduler
+ExecStart=/opt/finwave/backend/venv/bin/python scheduler/template_scheduler.py run
+
+# Restart on failure
+Restart=on-failure
+RestartSec=60
+
+# Logging
+StandardOutput=append:/var/log/finwave/scheduler.log
+StandardError=append:/var/log/finwave/scheduler.error.log
+
+[Install]
+WantedBy=multi-user.target

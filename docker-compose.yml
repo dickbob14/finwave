@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - QB_CLIENT_ID=${QB_CLIENT_ID}
+      - QB_CLIENT_SECRET=${QB_CLIENT_SECRET}
+      - QB_REDIRECT_URI=${QB_REDIRECT_URI}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON=${GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./finwave.db}
+    volumes:
+      - ./backend:/app
+      - finwave-data:/app/data
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm start
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=finwave
+      - POSTGRES_PASSWORD=finwave
+      - POSTGRES_DB=finwave
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+volumes:
+  finwave-data:
+  postgres-data:
+  redis-data:
