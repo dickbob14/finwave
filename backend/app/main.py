@@ -2,7 +2,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import os
+import logging
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -17,7 +20,7 @@ try:
     PLANNER_AVAILABLE = True
 except ImportError as e:
     PLANNER_AVAILABLE = False
-    print(f"Planner functionality disabled: {e}")
+    # DEBUG: Planner functionality disabled
 
 # Import new Block D routes
 import sys
@@ -36,6 +39,10 @@ from routes.alerts import router as alerts_router
 from routes.forecast import router as forecast_router
 from routes.oauth import router as oauth_router
 from routes.reports import router as reports_router
+from routes.oauth_config import router as oauth_config_router
+from routes.ask import router as ask_router
+from routes.dashboard_api import router as dashboard_router
+from routes.quickbooks_debug import router as qb_debug_router
 
 # Import middleware
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,7 +58,7 @@ app = FastAPI(
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://app.finwave.io"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "https://app.finwave.io"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -74,9 +81,100 @@ app.include_router(alerts_router, prefix="/api")
 app.include_router(forecast_router, prefix="/api")
 app.include_router(oauth_router, prefix="/api")
 app.include_router(reports_router, prefix="/api")
+app.include_router(oauth_config_router, prefix="/api")
+app.include_router(ask_router, prefix="/api")
+app.include_router(dashboard_router, prefix="/api")
+app.include_router(qb_debug_router, prefix="/api")
 
 class Ask(BaseModel):
     query: str
+
+@app.get("/api/demo/insights")
+def demo_insights():
+    """
+    Demo endpoint for dashboard insights - tries real QuickBooks data first
+    """
+    try:
+        # Try to get real data from QuickBooks
+        from core.database import get_db_session
+        from metrics.models import Metric
+        from models.integration import IntegrationCredential
+        from datetime import date
+        
+        workspace_id = "default"  # Use default workspace
+        
+        with get_db_session() as db:
+            # Check if QuickBooks is connected
+            qb_integration = db.query(IntegrationCredential).filter_by(
+                workspace_id=workspace_id,
+                source="quickbooks"
+            ).first()
+            
+            if qb_integration and qb_integration.status == "connected":
+                # Get latest metrics from database
+                current_period = date.today().replace(day=1)
+                
+                metrics = db.query(Metric).filter_by(
+                    workspace_id=workspace_id,
+                    period_date=current_period
+                ).all()
+                
+                if metrics:
+                    # Build response from real data
+                    metric_dict = {m.metric_id: m.value for m in metrics}
+                    
+                    revenue = metric_dict.get('revenue', 0)
+                    expenses = metric_dict.get('operating_expenses', 0) + metric_dict.get('cogs', 0)
+                    net_profit = revenue - expenses  # Calculate if not stored
+                    profit_margin = (net_profit / revenue * 100) if revenue > 0 else 0
+                    ar = metric_dict.get('accounts_receivable', 0)
+                    
+                    return {
+                        "summary": "Live QuickBooks Data",
+                        "key_metrics": {
+                            "total_revenue": f"${revenue:,.0f}",
+                            "total_expenses": f"${expenses:,.0f}",
+                            "net_profit": f"${net_profit:,.0f}",
+                            "profit_margin": f"{profit_margin:.1f}%",
+                            "accounts_receivable": f"${ar:,.0f}",
+                            "outstanding_invoices": 0  # TODO: Calculate from invoice data
+                        },
+                        "ai_recommendations": [
+                            "Connected to QuickBooks - data is live",
+                            f"Profit margin is {profit_margin:.1f}% - {'above' if profit_margin > 20 else 'below'} industry average",
+                            "Run manual sync to update data" if qb_integration.last_synced_at else "Initial sync in progress"
+                        ],
+                        "variance_alerts": [
+                            f"Last synced: {qb_integration.last_synced_at}" if qb_integration.last_synced_at else "Sync pending"
+                        ],
+                        "generated_by": "FinWave Analytics",
+                        "data_source": "QuickBooks (Live)"
+                    }
+    except Exception as e:
+        logger.error(f"Error fetching live data: {e}")
+    
+    # Fallback to demo data
+    return {
+        "summary": "Demo Data (Connect QuickBooks for Live Data)",
+        "key_metrics": {
+            "total_revenue": "$287,000",
+            "total_expenses": "$195,000",
+            "net_profit": "$92,000",
+            "profit_margin": "32%",
+            "accounts_receivable": "$45,000",
+            "outstanding_invoices": 12
+        },
+        "ai_recommendations": [
+            "Connect QuickBooks to see your real financial data",
+            "Demo shows sample financial metrics",
+            "Click Settings > Connections to connect QuickBooks"
+        ],
+        "variance_alerts": [
+            "This is demo data - connect QuickBooks for real insights"
+        ],
+        "generated_by": "FinWave Analytics",
+        "data_source": "Demo Data"
+    }
 
 @app.post("/ask")
 def ask(body: Ask):

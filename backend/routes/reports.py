@@ -1,312 +1,363 @@
 """
-Report generation API routes
+FinWave Reports API Routes
+
+Endpoints for generating board-ready PDF reports
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime, date
-from typing import Optional, Dict, Any
-import json
+from typing import Optional
+from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
-from fastapi.responses import StreamingResponse, Response
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Response, Depends
+from fastapi.responses import StreamingResponse, FileResponse
 from sse_starlette.sse import EventSourceResponse
+from pathlib import Path
 
-from auth import get_current_user, require_workspace
-from reports import get_pdf_service
-from core.database import get_db_session
-from models.workspace import Workspace
+from reports.pdf_service import get_pdf_service
+from auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/reports", tags=["reports"])
+router = APIRouter(tags=["reports"])
 
-# In-memory progress tracking (in production, use Redis)
-report_progress = {}
+# In-memory job tracking (use Redis in production)
+report_jobs = {}
 
 
-@router.get("/board-pack.pdf")
-async def generate_board_report(
+@router.get("/{workspace}/reports/board-pack.pdf")
+async def generate_board_pack_sync(
+    workspace: str,
     period: Optional[str] = Query(None, description="Period in YYYY-MM format"),
-    workspace_id: str = Depends(require_workspace),
-    user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
-    Generate board pack PDF report
+    Generate board pack PDF synchronously (demo endpoint)
     
-    Returns PDF file stream
+    Returns the PDF directly for immediate download
     """
     try:
-        # Parse period
-        if period:
-            try:
-                period_date = datetime.strptime(period, "%Y-%m").date()
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid period format. Use YYYY-MM")
-        else:
-            period_date = date.today().replace(day=1)
+        # Default to current month if not specified
+        if not period:
+            period = datetime.now().strftime("%Y-%m")
         
-        # Get workspace name for filename
-        with get_db_session() as db:
-            workspace = db.query(Workspace).filter_by(id=workspace_id).first()
-            if not workspace:
-                raise HTTPException(status_code=404, detail="Workspace not found")
+        # Validate period format
+        try:
+            datetime.strptime(period, "%Y-%m")
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid period format. Use YYYY-MM"
+            )
+        
+        logger.info(f"Generating board pack for {workspace}/{period}")
         
         # Generate PDF
         pdf_service = get_pdf_service()
+        result = await pdf_service.build_pdf(
+            workspace,
+            period,
+            template='board_pack',
+            attach_variance=True
+        )
         
-        # Generate synchronously for now (could make async with progress)
-        pdf_bytes = pdf_service.generate_board_report(workspace_id, period_date)
-        
-        # Generate filename
-        filename = f"{workspace.name.replace(' ', '_')}_Board_Report_{period_date.strftime('%Y_%m')}.pdf"
-        
-        # Return PDF stream
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
+        # Return file response
+        return FileResponse(
+            path=result['local_path'],
+            media_type='application/pdf',
+            filename=result['filename'],
             headers={
-                "Content-Disposition": f"attachment; filename={filename}"
+                'X-PDF-Pages': str(result.get('pages', 0)),
+                'X-PDF-Size': str(result.get('size_bytes', 0))
             }
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to generate board report: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate report")
+        logger.error(f"Board pack generation failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"PDF generation failed: {str(e)}"
+        )
 
 
-@router.get("/board-pack/progress")
-async def board_report_progress(
-    workspace_id: str = Depends(require_workspace),
-    user: dict = Depends(get_current_user)
-):
-    """
-    Stream progress updates for board report generation
-    
-    Uses Server-Sent Events (SSE)
-    """
-    async def generate():
-        progress_key = f"{workspace_id}_board_report"
-        
-        # Initial message
-        yield {
-            "event": "start",
-            "data": json.dumps({"progress": 0, "message": "Starting report generation..."})
-        }
-        
-        # Simulate progress updates
-        stages = [
-            (10, "Loading financial data..."),
-            (30, "Generating charts..."),
-            (50, "Building report sections..."),
-            (70, "Rendering PDF..."),
-            (90, "Finalizing document..."),
-            (100, "Complete!")
-        ]
-        
-        for progress, message in stages:
-            await asyncio.sleep(1)  # Simulate work
-            
-            yield {
-                "event": "progress",
-                "data": json.dumps({"progress": progress, "message": message})
-            }
-        
-        # Final message with download URL
-        yield {
-            "event": "complete",
-            "data": json.dumps({
-                "progress": 100,
-                "message": "Report ready!",
-                "download_url": f"/api/{workspace_id}/reports/board-pack.pdf"
-            })
-        }
-    
-    return EventSourceResponse(generate())
-
-
-@router.post("/board-pack/generate")
-async def generate_board_report_async(
+@router.post("/{workspace}/reports/board-pack/generate")
+async def generate_board_pack_async(
+    workspace: str,
     background_tasks: BackgroundTasks,
     period: Optional[str] = Query(None, description="Period in YYYY-MM format"),
-    workspace_id: str = Depends(require_workspace),
-    user: dict = Depends(get_current_user)
+    email_notification: bool = Query(False, description="Send email when complete"),
+    current_user: dict = Depends(get_current_user)
 ):
     """
-    Generate board report asynchronously
+    Generate board pack PDF asynchronously
     
     Returns job ID for tracking progress
     """
     try:
-        # Parse period
-        if period:
-            try:
-                period_date = datetime.strptime(period, "%Y-%m").date()
-            except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid period format. Use YYYY-MM")
-        else:
-            period_date = date.today().replace(day=1)
+        # Default to current month
+        if not period:
+            period = datetime.now().strftime("%Y-%m")
         
-        # Create job ID
-        job_id = f"{workspace_id}_{period_date.strftime('%Y%m')}_{datetime.utcnow().timestamp()}"
+        # Validate period
+        try:
+            datetime.strptime(period, "%Y-%m")
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid period format. Use YYYY-MM"
+            )
         
-        # Start background generation
+        # Create job
+        job_id = f"job_{uuid4().hex[:8]}"
+        report_jobs[job_id] = {
+            'status': 'pending',
+            'progress': 0,
+            'message': 'Report generation queued',
+            'workspace': workspace,
+            'period': period,
+            'created_at': datetime.utcnow().isoformat(),
+            'created_by': current_user.get('email', 'system')
+        }
+        
+        # Start background task
         background_tasks.add_task(
-            generate_report_background,
-            workspace_id,
-            period_date,
+            _generate_pdf_background,
             job_id,
-            user.get('email', user.get('sub'))
+            workspace,
+            period,
+            email_notification,
+            current_user.get('email')
         )
         
         return {
-            "job_id": job_id,
-            "status": "started",
-            "progress_url": f"/api/{workspace_id}/reports/status/{job_id}"
+            'job_id': job_id,
+            'status': 'accepted',
+            'progress_url': f'/api/{workspace}/reports/progress/{job_id}',
+            'message': 'Report generation started'
         }
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to start report generation: {e}")
-        raise HTTPException(status_code=500, detail="Failed to start report generation")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to start report generation"
+        )
 
 
-async def generate_report_background(workspace_id: str, period_date: date, 
-                                   job_id: str, user_email: str):
-    """Background task to generate report"""
+@router.get("/{workspace}/reports/progress/{job_id}")
+async def get_job_progress_sse(
+    workspace: str,
+    job_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Stream progress updates via Server-Sent Events
+    """
+    async def event_generator():
+        # Initial check
+        if job_id not in report_jobs:
+            yield {
+                'event': 'error',
+                'data': json.dumps({'error': 'Job not found'})
+            }
+            return
+        
+        # Stream updates
+        last_progress = -1
+        while True:
+            job = report_jobs.get(job_id)
+            if not job:
+                break
+                
+            # Only send if progress changed
+            if job['progress'] != last_progress:
+                yield {
+                    'event': 'progress',
+                    'data': json.dumps({
+                        'progress': job['progress'],
+                        'message': job['message'],
+                        'status': job['status']
+                    })
+                }
+                last_progress = job['progress']
+            
+            # Check if complete
+            if job['status'] in ['complete', 'failed']:
+                yield {
+                    'event': 'complete',
+                    'data': json.dumps(job)
+                }
+                break
+            
+            # Small delay to prevent overwhelming
+            await asyncio.sleep(0.5)
+    
+    return EventSourceResponse(event_generator())
+
+
+@router.get("/demo/reports/board-pack.pdf")
+async def demo_board_pack():
+    """
+    Demo endpoint that doesn't require authentication
+    
+    Generates a sample board pack for the current month
+    """
+    try:
+        period = datetime.now().strftime("%Y-%m")
+        
+        logger.info(f"Generating demo board pack for {period}")
+        
+        # Generate PDF with demo data
+        pdf_service = get_pdf_service()
+        result = await pdf_service.build_pdf(
+            'demo',  # Demo workspace
+            period,
+            template='board_pack',
+            attach_variance=True
+        )
+        
+        # Return file
+        return FileResponse(
+            path=result['local_path'],
+            media_type='application/pdf',
+            filename=f"FinWave_Demo_Board_Pack_{period}.pdf"
+        )
+        
+    except Exception as e:
+        logger.error(f"Demo PDF generation failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to generate demo report"
+        )
+
+
+async def _generate_pdf_background(job_id: str, workspace: str, period: str,
+                                  email_notification: bool, user_email: str):
+    """
+    Background task to generate PDF
+    """
     try:
         # Update progress
         def update_progress(progress: int, message: str):
-            report_progress[job_id] = {
-                "progress": progress,
-                "message": message,
-                "status": "running" if progress < 100 else "complete"
-            }
+            if job_id in report_jobs:
+                report_jobs[job_id].update({
+                    'progress': progress,
+                    'message': message,
+                    'status': 'running' if progress < 100 else 'complete'
+                })
         
-        # Generate report
+        update_progress(10, "Initializing report generation...")
+        
+        # Generate PDF
         pdf_service = get_pdf_service()
-        pdf_bytes = pdf_service.generate_board_report(
-            workspace_id, 
-            period_date,
-            progress_callback=update_progress
+        
+        # Simulate progress updates during generation
+        update_progress(20, "Loading financial data...")
+        await asyncio.sleep(1)
+        
+        update_progress(40, "Generating charts and visualizations...")
+        await asyncio.sleep(1)
+        
+        update_progress(60, "Building report sections...")
+        await asyncio.sleep(1)
+        
+        update_progress(80, "Rendering PDF document...")
+        
+        # Actually generate the PDF
+        result = await pdf_service.build_pdf(
+            workspace,
+            period,
+            template='board_pack',
+            attach_variance=True
         )
         
-        # Save to storage (S3 in production)
-        s3_url = pdf_service.upload_to_s3(
-            pdf_bytes,
-            workspace_id,
-            period_date
-        )
+        update_progress(90, "Finalizing report...")
         
-        # Update final status
-        report_progress[job_id] = {
-            "progress": 100,
-            "message": "Report generated successfully",
-            "status": "complete",
-            "download_url": s3_url,
-            "size_bytes": len(pdf_bytes)
-        }
+        # Update job with results
+        report_jobs[job_id].update({
+            'status': 'complete',
+            'progress': 100,
+            'message': 'Report generated successfully',
+            'completed_at': datetime.utcnow().isoformat(),
+            'result': {
+                'filename': result['filename'],
+                'size_bytes': result['size_bytes'],
+                'pages': result['pages'],
+                'download_url': f'/api/{workspace}/reports/download/{job_id}',
+                's3_url': result.get('s3_url'),
+                'presigned_url': result.get('download_url')
+            }
+        })
         
-        # TODO: Send email notification if configured
+        # Send email notification if requested
+        if email_notification and user_email:
+            # TODO: Implement email notification
+            logger.info(f"Would send email to {user_email} about completed report")
         
     except Exception as e:
-        logger.error(f"Background report generation failed: {e}")
-        report_progress[job_id] = {
-            "progress": 0,
-            "message": f"Generation failed: {str(e)}",
-            "status": "failed"
-        }
+        logger.error(f"Background PDF generation failed: {e}")
+        if job_id in report_jobs:
+            report_jobs[job_id].update({
+                'status': 'failed',
+                'progress': report_jobs[job_id].get('progress', 0),
+                'message': f'Generation failed: {str(e)}',
+                'error': str(e),
+                'failed_at': datetime.utcnow().isoformat()
+            })
 
 
-@router.get("/status/{job_id}")
-async def get_report_status(
+@router.get("/{workspace}/reports/download/{job_id}")
+async def download_generated_report(
+    workspace: str,
     job_id: str,
-    workspace_id: str = Depends(require_workspace),
-    user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
-    """Get status of report generation job"""
-    status = report_progress.get(job_id)
+    """
+    Download a previously generated report
+    """
+    job = report_jobs.get(job_id)
     
-    if not status:
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    return status
-
-
-@router.get("/history")
-async def get_report_history(
-    limit: int = Query(10, description="Number of reports to return"),
-    workspace_id: str = Depends(require_workspace),
-    user: dict = Depends(get_current_user)
-):
-    """
-    Get history of generated reports
+    if job['status'] != 'complete':
+        raise HTTPException(
+            status_code=400,
+            detail=f"Report not ready. Status: {job['status']}"
+        )
     
-    In production, this would query a reports table
-    """
-    # Mock data for now
-    history = [
-        {
-            "id": f"report_{i}",
-            "period": f"2024-{12-i:02d}",
-            "generated_at": datetime(2024, 12-i, 1).isoformat(),
-            "generated_by": user.get('email', 'system'),
-            "size_bytes": 1024 * 1024 * (i + 1),  # 1-10 MB
-            "download_url": f"/api/{workspace_id}/reports/board-pack.pdf?period=2024-{12-i:02d}"
-        }
-        for i in range(min(limit, 6))
-    ]
+    if 'result' not in job or 'filename' not in job['result']:
+        raise HTTPException(
+            status_code=500,
+            detail="Report metadata missing"
+        )
     
-    return {
-        "reports": history,
-        "total": len(history)
-    }
+    # Check if we have a presigned URL (for S3)
+    if job['result'].get('presigned_url'):
+        # Redirect to S3 presigned URL
+        return Response(
+            status_code=302,
+            headers={'Location': job['result']['presigned_url']}
+        )
+    
+    # Otherwise serve from local file
+    local_path = Path(__file__).parent.parent / 'generated_reports' / job['result']['filename']
+    
+    if not local_path.exists():
+        raise HTTPException(status_code=404, detail="Report file not found")
+    
+    return FileResponse(
+        path=str(local_path),
+        media_type='application/pdf',
+        filename=job['result']['filename']
+    )
 
 
-@router.get("/templates")
-async def list_report_templates(
-    workspace_id: str = Depends(require_workspace),
-    user: dict = Depends(get_current_user)
-):
-    """List available report templates"""
-    return {
-        "templates": [
-            {
-                "id": "board-pack",
-                "name": "Board Report Pack",
-                "description": "Comprehensive monthly board report with financials, KPIs, and analysis",
-                "sections": [
-                    "Executive Summary",
-                    "KPI Dashboard", 
-                    "Financial Statements",
-                    "Variance Analysis",
-                    "Forecast & Outlook"
-                ]
-            },
-            {
-                "id": "investor-update",
-                "name": "Investor Update",
-                "description": "Quarterly investor update with highlights and metrics",
-                "sections": [
-                    "Highlights",
-                    "Key Metrics",
-                    "Product Updates",
-                    "Financial Summary"
-                ]
-            },
-            {
-                "id": "variance-report",
-                "name": "Variance Report",
-                "description": "Detailed variance analysis vs budget and prior period",
-                "sections": [
-                    "Executive Summary",
-                    "Revenue Variances",
-                    "Expense Variances",
-                    "Action Items"
-                ]
-            }
-        ]
-    }
+# Include router in main app
+__all__ = ['router']

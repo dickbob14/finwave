@@ -1,155 +1,212 @@
 """
-PDF generation service with WeasyPrint
+FinWave PDF Service
+
+WeasyPrint renderer with thread-pool support for generating
+board-ready financial reports
 """
 
+import asyncio
+import base64
 import io
 import logging
 import os
-import tempfile
-from concurrent.futures import ThreadPoolExecutor, Future
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
-import json
+from typing import Dict, Any, Optional
+import boto3
+from botocore.exceptions import ClientError
+from jinja2 import Environment, FileSystemLoader
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-from weasyprint import HTML, CSS
-from weasyprint.text.fonts import FontConfiguration
+try:
+    from weasyprint import HTML, CSS
+    from weasyprint.text.fonts import FontConfiguration
+    WEASYPRINT_AVAILABLE = True
+except ImportError:
+    WEASYPRINT_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("WeasyPrint not installed. PDF generation will fail.")
 
-from reports.report_builder import ReportBuilder
-from reports.chart_helpers import ChartGenerator
+from reports.report_builder import build_board_pack
+from reports.chart_helpers import build_base64_chart
 
 logger = logging.getLogger(__name__)
 
-# Thread pool for PDF generation
-pdf_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix='pdf_worker')
+# Thread pool for PDF generation (WeasyPrint is CPU-intensive)
+pdf_thread_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix='pdf-gen')
+
 
 class PDFService:
-    """Service for generating PDF reports"""
+    """
+    Handles PDF generation for financial reports
+    """
     
-    def __init__(self, template_dir: str = None):
-        if not template_dir:
-            template_dir = Path(__file__).parent.parent / 'pdf_templates'
-        
-        self.template_dir = Path(template_dir)
+    def __init__(self):
+        self.template_dir = Path(__file__).parent.parent / 'pdf_templates'
         self.static_dir = Path(__file__).parent.parent / 'static'
+        self.fonts_dir = self.static_dir / 'fonts'
         
-        # Setup Jinja2
-        self.env = Environment(
+        # Jinja2 environment
+        self.jinja_env = Environment(
             loader=FileSystemLoader(str(self.template_dir)),
-            autoescape=select_autoescape(['html', 'xml'])
+            autoescape=True
         )
         
-        # Add custom filters
-        self.env.filters['format_number'] = self._format_number
-        self.env.filters['format_currency'] = self._format_currency
+        # WeasyPrint font configuration
+        self.font_config = FontConfiguration() if WEASYPRINT_AVAILABLE else None
         
-        # WeasyPrint font config
-        self.font_config = FontConfiguration()
-        
-        # Chart generator
-        self.chart_generator = ChartGenerator()
+        # S3 client (lazy loaded)
+        self._s3_client = None
     
-    def _format_number(self, value: Optional[float], decimals: int = 0) -> str:
-        """Format number for display"""
-        if value is None:
-            return '-'
-        
-        if decimals == 0:
-            return f"{value:,.0f}"
-        else:
-            return f"{value:,.{decimals}f}"
+    def _get_s3_client(self):
+        """Get or create S3 client"""
+        if not self._s3_client and os.getenv('AWS_S3_BUCKET'):
+            self._s3_client = boto3.client('s3')
+        return self._s3_client
     
-    def _format_currency(self, value: Optional[float]) -> str:
-        """Format currency for display"""
-        if value is None:
-            return '-'
-        
-        if value < 0:
-            return f"(${abs(value):,.0f})"
-        else:
-            return f"${value:,.0f}"
-    
-    def generate_board_report(self, workspace_id: str, period_date: datetime = None,
-                            progress_callback: callable = None) -> bytes:
+    async def build_pdf(self, workspace_id: str, period: str, 
+                       template: str = 'report',
+                       attach_variance: bool = True) -> Dict[str, Any]:
         """
-        Generate board report PDF
+        Build PDF report asynchronously
         
         Args:
-            workspace_id: Workspace ID
-            period_date: Report period (defaults to current month)
-            progress_callback: Optional callback for progress updates
+            workspace_id: Workspace identifier
+            period: YYYY-MM format
+            template: Template name
+            attach_variance: Include variance appendix
             
         Returns:
-            PDF bytes
+            Dictionary with file path, S3 URL, etc.
         """
-        try:
-            # Progress: Building data
-            if progress_callback:
-                progress_callback(10, "Building report data...")
-            
-            # Build report context
-            builder = ReportBuilder(workspace_id, period_date)
-            context = builder.build_report_context()
-            
-            # Progress: Generating charts
-            if progress_callback:
-                progress_callback(30, "Generating charts...")
-            
-            # Generate charts
-            context['charts'] = self.chart_generator.generate_all_charts(context)
-            
-            # Progress: Rendering HTML
-            if progress_callback:
-                progress_callback(50, "Rendering report...")
-            
-            # Render HTML
-            template = self.env.get_template('report.html')
-            html_content = template.render(**context)
-            
-            # Progress: Generating PDF
-            if progress_callback:
-                progress_callback(70, "Generating PDF...")
-            
-            # Generate PDF
-            pdf_bytes = self._render_pdf(html_content)
-            
-            # Progress: Complete
-            if progress_callback:
-                progress_callback(100, "Complete")
-            
-            return pdf_bytes
-            
-        except Exception as e:
-            logger.error(f"Failed to generate board report: {e}")
-            raise
-    
-    def _render_pdf(self, html_content: str) -> bytes:
-        """Render HTML to PDF using WeasyPrint"""
-        # Create HTML object with base URL for static files
-        html = HTML(
-            string=html_content,
-            base_url=str(self.static_dir),
-            encoding='utf-8'
+        loop = asyncio.get_event_loop()
+        
+        # Run CPU-intensive work in thread pool
+        result = await loop.run_in_executor(
+            pdf_thread_pool,
+            self._build_pdf_sync,
+            workspace_id, period, template, attach_variance
         )
         
-        # Custom CSS for print
-        print_css = CSS(string="""
-            @page {
-                size: A4;
-                margin: 2cm;
+        return result
+    
+    def _build_pdf_sync(self, workspace_id: str, period: str, 
+                       template: str, attach_variance: bool) -> Dict[str, Any]:
+        """
+        Synchronous PDF builder (runs in thread pool)
+        """
+        try:
+            # Step 1: Build report context
+            logger.info(f"Building report context for {workspace_id}/{period}")
+            context = build_board_pack(
+                workspace_id, 
+                period,
+                include_variance=attach_variance
+            )
+            
+            # Step 2: Generate charts
+            logger.info("Generating charts")
+            context['charts'] = self._generate_charts(context)
+            
+            # Step 3: Add additional context
+            context['fonts_path'] = str(self.fonts_dir)
+            context['generated_at'] = datetime.utcnow().strftime('%B %d, %Y at %I:%M %p UTC')
+            
+            # Step 4: Render HTML
+            logger.info(f"Rendering template: {template}.html")
+            html_template = self.jinja_env.get_template(f"{template}.html")
+            html_content = html_template.render(**context)
+            
+            # Step 5: Generate PDF
+            logger.info("Generating PDF with WeasyPrint")
+            pdf_bytes = self._render_pdf(html_content)
+            
+            # Step 6: Save locally
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            filename = f"{workspace_id}_{period}_board_pack_{timestamp}.pdf"
+            local_path = self._save_locally(pdf_bytes, filename)
+            
+            result = {
+                'filename': filename,
+                'local_path': str(local_path),
+                'size_bytes': len(pdf_bytes),
+                'pages': self._estimate_pages(len(pdf_bytes))
             }
+            
+            # Step 7: Upload to S3 if configured
+            if os.getenv('AWS_S3_BUCKET'):
+                try:
+                    s3_url = self._upload_to_s3(pdf_bytes, workspace_id, period, filename)
+                    result['s3_url'] = s3_url
+                    result['download_url'] = self._generate_presigned_url(s3_url)
+                except Exception as e:
+                    logger.error(f"S3 upload failed: {e}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"PDF generation failed: {e}")
+            raise
+    
+    def _generate_charts(self, context: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Generate all charts for the report
+        """
+        charts = {}
+        
+        try:
+            # Revenue trend chart
+            if 'revenue_trend' in context['charts']:
+                charts['revenue_trend'] = build_base64_chart(
+                    'line',
+                    context['charts']['revenue_trend'],
+                    palette_key='secondary'
+                )
+            
+            # Cash runway projection
+            if 'runway_projection' in context['charts']:
+                charts['runway_projection'] = build_base64_chart(
+                    'area',
+                    context['charts']['runway_projection'],
+                    palette_key='accent'
+                )
+            
+            # Scenario analysis
+            if context.get('forecast'):
+                charts['scenario'] = build_base64_chart(
+                    'scenario',
+                    context['forecast']
+                )
+            
+        except Exception as e:
+            logger.error(f"Chart generation failed: {e}")
+        
+        return charts
+    
+    def _render_pdf(self, html_content: str) -> bytes:
+        """
+        Render HTML to PDF using WeasyPrint
+        """
+        if not WEASYPRINT_AVAILABLE:
+            raise RuntimeError("WeasyPrint not installed. Run: pip install weasyprint")
+        
+        # Create HTML object
+        html = HTML(
+            string=html_content,
+            base_url=str(self.static_dir)
+        )
+        
+        # Custom CSS for print optimization
+        print_css = CSS(string="""
             @media print {
-                .page-break {
-                    page-break-after: always;
-                }
-                .no-break {
-                    page-break-inside: avoid;
+                * {
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
                 }
             }
         """)
         
-        # Render to bytes
+        # Generate PDF
         pdf_document = html.write_pdf(
             stylesheets=[print_css],
             font_config=self.font_config
@@ -157,92 +214,81 @@ class PDFService:
         
         return pdf_document
     
-    def generate_board_report_async(self, workspace_id: str, 
-                                  period_date: datetime = None) -> Future:
+    def _save_locally(self, pdf_bytes: bytes, filename: str) -> Path:
         """
-        Generate board report asynchronously
+        Save PDF to local reports directory
+        """
+        reports_dir = Path(__file__).parent.parent / 'generated_reports'
+        reports_dir.mkdir(exist_ok=True)
         
-        Returns:
-            Future that will contain the PDF bytes
-        """
-        return pdf_executor.submit(
-            self.generate_board_report,
-            workspace_id,
-            period_date
-        )
-    
-    def generate_custom_report(self, workspace_id: str, template_name: str,
-                             custom_context: Dict[str, Any] = None) -> bytes:
-        """
-        Generate a custom report using a specific template
-        
-        Args:
-            workspace_id: Workspace ID
-            template_name: Template file name
-            custom_context: Additional context for the template
-            
-        Returns:
-            PDF bytes
-        """
-        try:
-            # Build base context
-            builder = ReportBuilder(workspace_id)
-            context = builder.build_report_context()
-            
-            # Add custom context
-            if custom_context:
-                context.update(custom_context)
-            
-            # Generate charts if needed
-            if 'charts' not in context:
-                context['charts'] = self.chart_generator.generate_all_charts(context)
-            
-            # Render template
-            template = self.env.get_template(template_name)
-            html_content = template.render(**context)
-            
-            # Generate PDF
-            return self._render_pdf(html_content)
-            
-        except Exception as e:
-            logger.error(f"Failed to generate custom report: {e}")
-            raise
-    
-    def save_to_file(self, pdf_bytes: bytes, output_path: str) -> str:
-        """Save PDF bytes to file"""
-        output_path = Path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(output_path, 'wb') as f:
+        file_path = reports_dir / filename
+        with open(file_path, 'wb') as f:
             f.write(pdf_bytes)
         
-        return str(output_path)
+        logger.info(f"PDF saved locally: {file_path}")
+        return file_path
     
-    def upload_to_s3(self, pdf_bytes: bytes, workspace_id: str, 
-                    period_date: datetime, report_type: str = 'board-pack') -> str:
+    def _upload_to_s3(self, pdf_bytes: bytes, workspace_id: str, 
+                     period: str, filename: str) -> str:
         """
-        Upload PDF to S3
-        
-        Returns:
-            S3 URL
+        Upload PDF to S3 bucket
         """
-        # This would integrate with your S3 setup
-        # For now, return a mock URL
-        key = f"reports/{workspace_id}/{period_date.strftime('%Y-%m')}/{report_type}.pdf"
+        s3_client = self._get_s3_client()
+        if not s3_client:
+            raise ValueError("S3 not configured")
         
-        # In production:
-        # s3_client = boto3.client('s3')
-        # s3_client.put_object(
-        #     Bucket=REPORT_BUCKET,
-        #     Key=key,
-        #     Body=pdf_bytes,
-        #     ContentType='application/pdf'
-        # )
+        bucket = os.getenv('AWS_S3_BUCKET')
+        key = f"reports/{workspace_id}/{period}/{filename}"
         
-        return f"s3://finwave-reports/{key}"
+        s3_client.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=pdf_bytes,
+            ContentType='application/pdf',
+            ServerSideEncryption='AES256',
+            Metadata={
+                'workspace_id': workspace_id,
+                'period': period,
+                'generated_at': datetime.utcnow().isoformat()
+            }
+        )
+        
+        logger.info(f"PDF uploaded to S3: s3://{bucket}/{key}")
+        return f"s3://{bucket}/{key}"
+    
+    def _generate_presigned_url(self, s3_url: str, expiration: int = 3600) -> str:
+        """
+        Generate presigned URL for S3 object
+        """
+        s3_client = self._get_s3_client()
+        if not s3_client:
+            return ""
+        
+        # Parse S3 URL
+        parts = s3_url.replace("s3://", "").split("/", 1)
+        bucket = parts[0]
+        key = parts[1]
+        
+        try:
+            url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': bucket, 'Key': key},
+                ExpiresIn=expiration
+            )
+            return url
+        except Exception as e:
+            logger.error(f"Failed to generate presigned URL: {e}")
+            return ""
+    
+    def _estimate_pages(self, pdf_size: int) -> int:
+        """
+        Estimate page count based on PDF size
+        """
+        # Rough estimate: ~50KB per page
+        return max(1, pdf_size // 50000)
 
 
-# Singleton instance
+# Global instance
 _pdf_service = None
 
 def get_pdf_service() -> PDFService:
@@ -251,3 +297,20 @@ def get_pdf_service() -> PDFService:
     if _pdf_service is None:
         _pdf_service = PDFService()
     return _pdf_service
+
+
+# Convenience functions
+async def build_board_pack_pdf(workspace_id: str, period: str, **kwargs) -> Dict[str, Any]:
+    """
+    Build board pack PDF
+    
+    Args:
+        workspace_id: Workspace ID
+        period: YYYY-MM format
+        **kwargs: Additional options
+        
+    Returns:
+        Dictionary with PDF metadata
+    """
+    service = get_pdf_service()
+    return await service.build_pdf(workspace_id, period, 'report', **kwargs)

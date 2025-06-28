@@ -1,12 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 98%; /* Cloud White */
-    --foreground: 210 24% 16%; /* Deep Navy */
+    --background: 0 0% 100%;
+    --foreground: 210 24% 16%;
     
     --card: 0 0% 100%;
     --card-foreground: 210 24% 16%;
@@ -14,19 +14,19 @@
     --popover: 0 0% 100%;
     --popover-foreground: 210 24% 16%;
     
-    --primary: 210 24% 16%; /* Deep Navy */
+    --primary: 210 24% 16%;
     --primary-foreground: 0 0% 98%;
     
-    --secondary: 174 48% 44%; /* Ocean Teal */
+    --secondary: 174 48% 44%;
     --secondary-foreground: 0 0% 98%;
     
-    --muted: 210 6% 91%; /* Mist Gray */
+    --muted: 210 6% 91%;
     --muted-foreground: 215 4% 47%;
     
-    --accent: 240 84% 67%; /* Electric Indigo */
+    --accent: 240 84% 67%;
     --accent-foreground: 0 0% 98%;
     
-    --destructive: 0 65% 72%; /* Coral Red */
+    --destructive: 0 65% 72%;
     --destructive-foreground: 0 0% 98%;
     
     --border: 214 7% 91%;
@@ -46,10 +46,10 @@
     --popover: 210 24% 12%;
     --popover-foreground: 0 0% 98%;
     
-    --primary: 174 48% 44%; /* Ocean Teal in dark mode */
+    --primary: 174 48% 44%;
     --primary-foreground: 0 0% 98%;
     
-    --secondary: 240 84% 67%; /* Electric Indigo in dark mode */
+    --secondary: 240 84% 67%;
     --secondary-foreground: 0 0% 98%;
     
     --muted: 210 15% 20%;
@@ -65,55 +65,77 @@
     --input: 210 15% 20%;
     --ring: 174 48% 44%;
   }
-}
-
-@layer base {
+  
   * {
-    @apply border-border;
+    border-color: hsl(var(--border));
   }
+  
   body {
-    @apply bg-cloud text-navy;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  }
-  
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    @apply font-semibold text-navy;
-  }
-  
-  .font-display {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  }
-  
-  .font-mono {
-    font-family: 'Space Grotesk', 'Roboto Mono', monospace;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
-/* Custom gradients */
-.bg-gradient-primary {
-  background: linear-gradient(135deg, #2DB3A6 0%, #5B5BF2 100%);
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 
-/* Custom shadow for cards */
+h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+h3 {
+  font-size: 1.5rem;
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Card styles */
 .card-shadow {
-  box-shadow: 0 1px 3px 0 rgba(30, 42, 56, 0.08), 0 1px 2px 0 rgba(30, 42, 56, 0.06);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
 }
 
 .card-shadow-hover {
-  box-shadow: 0 10px 15px -3px rgba(30, 42, 56, 0.1), 0 4px 6px -2px rgba(30, 42, 56, 0.05);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-/* Custom animations */
-@keyframes wave {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+/* Custom utilities */
+.text-gradient {
+  background: linear-gradient(135deg, #2DB3A6 0%, #5B5BF2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-.animate-wave {
-  animation: wave 3s ease-in-out infinite;
-}
+/* Font weights fix for Tailwind v4 */
+.font-normal { font-weight: 400; }
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+
+/* Border fix */
+.border-border { border-color: hsl(var(--border)); }
+
+/* Status colors */
+.text-success { color: #10b981; }
+.text-warning { color: #f59e0b; }
+.text-error { color: #ef4444; }
+.bg-success { background-color: #10b981; }
+.bg-warning { background-color: #f59e0b; }
+.bg-error { background-color: #ef4444; }

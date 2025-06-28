@@ -1,328 +1,453 @@
 """
-Chart generation helpers for PDF reports
+FinWave Chart Helpers
+
+Generates branded matplotlib charts for PDF reports
 """
 
-import io
 import base64
-import json
+import io
 import logging
-from datetime import date
-from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Dict, Any, List, Optional
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from matplotlib.figure import Figure
-import seaborn as sns
+from matplotlib.patches import Rectangle
+import pandas as pd
+import numpy as np
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-class ChartGenerator:
-    """Generate charts for PDF reports"""
+# FinWave Brand Colors
+COLORS = {
+    'primary': '#1E2A38',      # Deep Navy
+    'secondary': '#2DB3A6',    # Ocean Teal
+    'accent': '#5B5BF2',       # Electric Indigo
+    'grid': '#E5E7EB',         # Light Gray
+    'text': '#374151',         # Dark Gray
+    'background': '#FFFFFF',   # White
+    'negative': '#EF4444',     # Red
+    'positive': '#10B981'      # Green
+}
+
+# Font configuration
+FONT_CONFIG = {
+    'title': {'family': 'Space Grotesk', 'size': 14, 'weight': 'bold'},
+    'label': {'family': 'Inter', 'size': 10, 'weight': 'normal'},
+    'tick': {'family': 'Inter', 'size': 9, 'weight': 'normal'},
+    'legend': {'family': 'Inter', 'size': 9, 'weight': 'normal'}
+}
+
+
+def set_chart_style():
+    """Configure matplotlib with FinWave styling"""
+    plt.style.use('seaborn-v0_8-whitegrid')
     
-    def __init__(self, theme_path: str = None):
-        self.theme = self._load_theme(theme_path)
-        self._setup_style()
-        
-    def _load_theme(self, theme_path: str = None) -> Dict[str, Any]:
-        """Load theme configuration"""
-        if not theme_path:
-            theme_path = Path(__file__).parent.parent / 'static' / 'theme.json'
-        
-        with open(theme_path) as f:
-            return json.load(f)
+    # Update RC params
+    plt.rcParams['figure.facecolor'] = COLORS['background']
+    plt.rcParams['axes.facecolor'] = COLORS['background']
+    plt.rcParams['axes.edgecolor'] = COLORS['grid']
+    plt.rcParams['axes.labelcolor'] = COLORS['text']
+    plt.rcParams['text.color'] = COLORS['text']
+    plt.rcParams['xtick.color'] = COLORS['text']
+    plt.rcParams['ytick.color'] = COLORS['text']
+    plt.rcParams['grid.color'] = COLORS['grid']
+    plt.rcParams['grid.linestyle'] = '-'
+    plt.rcParams['grid.linewidth'] = 0.5
+    plt.rcParams['grid.alpha'] = 0.3
     
-    def _setup_style(self):
-        """Setup matplotlib style based on theme"""
-        # Set font
-        plt.rcParams['font.family'] = self.theme['charts']['font_family']
+    # Font settings (fallback if custom fonts not available)
+    try:
+        plt.rcParams['font.family'] = ['Inter', 'sans-serif']
         plt.rcParams['font.size'] = 10
-        
-        # Set colors
-        plt.rcParams['text.color'] = self.theme['charts']['text_color']
-        plt.rcParams['axes.labelcolor'] = self.theme['charts']['text_color']
-        plt.rcParams['xtick.color'] = self.theme['charts']['text_color']
-        plt.rcParams['ytick.color'] = self.theme['charts']['text_color']
-        
-        # Grid style
-        plt.rcParams['axes.grid'] = True
-        plt.rcParams['grid.color'] = self.theme['charts']['grid_color']
-        plt.rcParams['grid.linestyle'] = '-'
-        plt.rcParams['grid.linewidth'] = 0.5
-        plt.rcParams['grid.alpha'] = 0.3
-        
-        # Remove spines
-        plt.rcParams['axes.spines.top'] = False
-        plt.rcParams['axes.spines.right'] = False
-        
-        # Set figure background
-        plt.rcParams['figure.facecolor'] = 'white'
-        plt.rcParams['axes.facecolor'] = 'white'
+    except:
+        plt.rcParams['font.family'] = 'sans-serif'
+
+
+def render_line_chart(data: Dict[str, Any], palette_key: str = 'secondary') -> str:
+    """
+    Render a line chart with FinWave branding
     
-    def _fig_to_base64(self, fig: Figure) -> str:
-        """Convert matplotlib figure to base64 string"""
-        buffer = io.BytesIO()
-        fig.savefig(buffer, format='png', dpi=150, bbox_inches='tight', 
-                   facecolor='white', edgecolor='none')
-        buffer.seek(0)
-        image_base64 = base64.b64encode(buffer.read()).decode()
-        buffer.close()
-        plt.close(fig)
-        return image_base64
+    Args:
+        data: Dictionary with 'labels', 'values', 'title', 'y_label'
+        palette_key: Color key from COLORS dict
+        
+    Returns:
+        Base64 encoded PNG image
+    """
+    set_chart_style()
     
-    def plot_revenue_trend(self, periods: List[str], values: List[Optional[float]], 
-                          title: str = "Revenue Trend") -> str:
-        """Generate revenue trend line chart"""
-        fig, ax = plt.subplots(figsize=(10, 5))
-        
-        # Filter out None values
-        filtered_data = [(p, v) for p, v in zip(periods, values) if v is not None]
-        if not filtered_data:
-            return ""
-        
-        periods_filtered, values_filtered = zip(*filtered_data)
-        
-        # Plot line
-        ax.plot(range(len(periods_filtered)), values_filtered, 
-               color=self.theme['colors']['primary_color'], 
-               linewidth=2.5, marker='o', markersize=6)
-        
-        # Format y-axis
-        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x/1000:.0f}K'))
-        
-        # Set x-axis labels
-        ax.set_xticks(range(len(periods_filtered)))
-        ax.set_xticklabels(periods_filtered, rotation=45, ha='right')
-        
-        # Add value labels on points
-        for i, (period, value) in enumerate(zip(periods_filtered, values_filtered)):
-            ax.annotate(f'${value/1000:.0f}K', 
-                       xy=(i, value), 
-                       xytext=(0, 10),
-                       textcoords='offset points',
-                       ha='center',
-                       fontsize=9,
-                       color=self.theme['charts']['text_color'])
-        
-        # Styling
-        ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
-        ax.set_xlabel('')
-        ax.set_ylabel('Revenue', fontsize=11)
-        
-        # Tight layout
-        plt.tight_layout()
-        
-        return self._fig_to_base64(fig)
+    fig, ax = plt.subplots(figsize=(10, 6))
     
-    def plot_burn_vs_revenue(self, periods: List[str], 
-                           revenue: List[Optional[float]], 
-                           burn: List[Optional[float]]) -> str:
-        """Generate dual-axis chart for burn rate vs revenue"""
-        fig, ax1 = plt.subplots(figsize=(10, 5))
-        
-        # Revenue bars
-        x = range(len(periods))
-        ax1.bar(x, [r or 0 for r in revenue], 
-               color=self.theme['colors']['primary_color'], 
-               alpha=0.7, label='Revenue')
-        
-        # Burn line (secondary axis)
-        ax2 = ax1.twinx()
-        ax2.plot(x, [b or 0 for b in burn], 
-                color=self.theme['colors']['danger_color'], 
-                linewidth=2.5, marker='o', label='Burn Rate')
-        
-        # Format axes
-        ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x/1000:.0f}K'))
-        ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x/1000:.0f}K'))
-        
-        # Labels
-        ax1.set_xlabel('')
-        ax1.set_ylabel('Revenue', fontsize=11, color=self.theme['colors']['primary_color'])
-        ax2.set_ylabel('Burn Rate', fontsize=11, color=self.theme['colors']['danger_color'])
-        
-        # X-axis
-        ax1.set_xticks(x)
-        ax1.set_xticklabels(periods, rotation=45, ha='right')
-        
-        # Title
-        ax1.set_title('Revenue vs Burn Rate', fontsize=14, fontweight='bold', pad=20)
-        
-        # Color the y-axis labels
-        ax1.tick_params(axis='y', labelcolor=self.theme['colors']['primary_color'])
-        ax2.tick_params(axis='y', labelcolor=self.theme['colors']['danger_color'])
-        
-        plt.tight_layout()
-        
-        return self._fig_to_base64(fig)
+    # Extract data
+    labels = data.get('labels', [])
+    values = data.get('values', [])
+    title = data.get('title', 'Chart')
+    y_label = data.get('y_label', 'Value')
     
-    def plot_margin_analysis(self, periods: List[str], 
-                           gross_margin: List[Optional[float]], 
-                           ebitda_margin: List[Optional[float]]) -> str:
-        """Generate margin trend chart"""
-        fig, ax = plt.subplots(figsize=(10, 5))
-        
-        x = range(len(periods))
-        
-        # Plot lines
-        if any(gross_margin):
-            ax.plot(x, [m or 0 for m in gross_margin], 
-                   color=self.theme['colors']['success_color'], 
-                   linewidth=2.5, marker='o', label='Gross Margin')
-        
-        if any(ebitda_margin):
-            ax.plot(x, [m or 0 for m in ebitda_margin], 
-                   color=self.theme['colors']['primary_color'], 
-                   linewidth=2.5, marker='s', label='EBITDA Margin')
-        
-        # Add zero line
-        ax.axhline(y=0, color=self.theme['charts']['grid_color'], 
-                  linestyle='--', linewidth=1)
-        
-        # Format y-axis as percentage
-        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.0f}%'))
-        
-        # X-axis
-        ax.set_xticks(x)
-        ax.set_xticklabels(periods, rotation=45, ha='right')
-        
-        # Labels and title
-        ax.set_title('Margin Analysis', fontsize=14, fontweight='bold', pad=20)
-        ax.set_xlabel('')
-        ax.set_ylabel('Margin %', fontsize=11)
-        
-        # Legend
-        ax.legend(loc='best', frameon=True, fancybox=True, shadow=True)
-        
-        plt.tight_layout()
-        
-        return self._fig_to_base64(fig)
+    # Plot line
+    ax.plot(labels, values, 
+           color=COLORS[palette_key], 
+           linewidth=2.5,
+           marker='o',
+           markersize=6,
+           markerfacecolor=COLORS['background'],
+           markeredgecolor=COLORS[palette_key],
+           markeredgewidth=2)
     
-    def plot_cash_runway(self, cash_balance: float, burn_rate: float, 
-                        runway_months: int) -> str:
-        """Generate cash runway projection chart"""
-        fig, ax = plt.subplots(figsize=(10, 5))
-        
-        # Project cash over time
-        months = list(range(runway_months + 3))  # Extra months to show zero
-        cash_projection = [max(0, cash_balance - (burn_rate * m)) for m in months]
-        
-        # Plot area chart
-        ax.fill_between(months, cash_projection, alpha=0.3, 
-                       color=self.theme['colors']['primary_color'])
-        ax.plot(months, cash_projection, 
-               color=self.theme['colors']['primary_color'], 
-               linewidth=2.5)
-        
-        # Add runway line
-        ax.axvline(x=runway_months, color=self.theme['colors']['danger_color'], 
-                  linestyle='--', linewidth=2, alpha=0.7)
-        ax.text(runway_months, cash_balance * 0.5, f'{runway_months} months', 
-               rotation=90, va='center', ha='right', 
-               color=self.theme['colors']['danger_color'],
-               fontweight='bold')
-        
-        # Format y-axis
+    # Fill area under curve
+    ax.fill_between(range(len(labels)), values, alpha=0.1, color=COLORS[palette_key])
+    
+    # Styling
+    ax.set_title(title, fontsize=14, fontweight='bold', pad=20, color=COLORS['primary'])
+    ax.set_ylabel(y_label, fontsize=11, color=COLORS['text'])
+    ax.set_xlabel('')
+    
+    # Format y-axis
+    if y_label.startswith('Revenue') or y_label.startswith('Cash'):
         ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x/1000000:.1f}M'))
-        
-        # Labels
-        ax.set_title('Cash Runway Projection', fontsize=14, fontweight='bold', pad=20)
-        ax.set_xlabel('Months from Today', fontsize=11)
-        ax.set_ylabel('Cash Balance', fontsize=11)
-        
-        # Styling
-        ax.set_xlim(0, len(months) - 1)
-        ax.set_ylim(0, cash_balance * 1.1)
-        
-        plt.tight_layout()
-        
-        return self._fig_to_base64(fig)
     
-    def plot_kpi_gauge(self, value: float, target: float, 
-                      title: str, is_percentage: bool = False) -> str:
-        """Generate a gauge chart for KPI vs target"""
-        fig, ax = plt.subplots(figsize=(6, 4), subplot_kw=dict(projection='polar'))
+    # Rotate x labels if many
+    if len(labels) > 6:
+        plt.xticks(rotation=45, ha='right')
+    
+    # Remove top and right spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_color(COLORS['grid'])
+    ax.spines['bottom'].set_color(COLORS['grid'])
+    
+    # Adjust layout
+    plt.tight_layout()
+    
+    # Convert to base64
+    buffer = io.BytesIO()
+    plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight', facecolor=COLORS['background'])
+    plt.close()
+    
+    buffer.seek(0)
+    image_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+    
+    return f"data:image/png;base64,{image_base64}"
+
+
+def render_area_chart(data: Dict[str, Any], palette_key: str = 'accent') -> str:
+    """
+    Render an area chart (e.g., cash runway projection)
+    
+    Args:
+        data: Dictionary with 'labels', 'values', 'title', 'y_label'
+        palette_key: Color key from COLORS dict
         
-        # Calculate percentage of target
-        pct_of_target = min(value / target * 100, 150) if target > 0 else 0
+    Returns:
+        Base64 encoded PNG image
+    """
+    set_chart_style()
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Extract data
+    labels = data.get('labels', [])
+    values = data.get('values', [])
+    title = data.get('title', 'Chart')
+    y_label = data.get('y_label', 'Value')
+    
+    # Plot area
+    ax.fill_between(range(len(labels)), values, 
+                   alpha=0.6, 
+                   color=COLORS[palette_key],
+                   edgecolor=COLORS[palette_key],
+                   linewidth=2)
+    
+    # Add line on top
+    ax.plot(labels, values, 
+           color=COLORS[palette_key], 
+           linewidth=2.5)
+    
+    # Add zero line if cash goes negative
+    if min(values) < 0:
+        ax.axhline(y=0, color=COLORS['negative'], linestyle='--', alpha=0.5, linewidth=1)
+    
+    # Styling
+    ax.set_title(title, fontsize=14, fontweight='bold', pad=20, color=COLORS['primary'])
+    ax.set_ylabel(y_label, fontsize=11, color=COLORS['text'])
+    ax.set_xlabel('')
+    
+    # Format y-axis
+    if 'Cash' in y_label:
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x/1000000:.1f}M'))
+    
+    # Rotate x labels
+    plt.xticks(rotation=45, ha='right')
+    
+    # Remove spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    plt.tight_layout()
+    
+    # Convert to base64
+    buffer = io.BytesIO()
+    plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight', facecolor=COLORS['background'])
+    plt.close()
+    
+    buffer.seek(0)
+    image_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+    
+    return f"data:image/png;base64,{image_base64}"
+
+
+def render_bar_chart(data: Dict[str, Any], palette_key: str = 'secondary') -> str:
+    """
+    Render a bar chart with positive/negative coloring
+    
+    Args:
+        data: Dictionary with 'labels', 'values', 'title', 'y_label'
+        palette_key: Color key from COLORS dict
         
-        # Set up the gauge
-        theta = [0, pct_of_target * 1.8]  # 180 degrees = 100%
-        radii = [0, 1]
+    Returns:
+        Base64 encoded PNG image
+    """
+    set_chart_style()
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Extract data
+    labels = data.get('labels', [])
+    values = data.get('values', [])
+    title = data.get('title', 'Chart')
+    y_label = data.get('y_label', 'Value')
+    
+    # Determine colors based on positive/negative
+    colors = [COLORS['positive'] if v >= 0 else COLORS['negative'] for v in values]
+    
+    # Create bars
+    bars = ax.bar(range(len(labels)), values, color=colors, alpha=0.8, edgecolor='white', linewidth=1)
+    
+    # Add value labels on bars
+    for bar, value in zip(bars, values):
+        height = bar.get_height()
+        label_y = height + (max(values) * 0.01 if height > 0 else min(values) * 0.01)
+        ax.text(bar.get_x() + bar.get_width()/2., label_y,
+                f'{value:,.0f}',
+                ha='center', va='bottom' if height > 0 else 'top',
+                fontsize=9, color=COLORS['text'])
+    
+    # Styling
+    ax.set_title(title, fontsize=14, fontweight='bold', pad=20, color=COLORS['primary'])
+    ax.set_ylabel(y_label, fontsize=11, color=COLORS['text'])
+    ax.set_xticks(range(len(labels)))
+    ax.set_xticklabels(labels, rotation=45 if len(labels) > 6 else 0, ha='right' if len(labels) > 6 else 'center')
+    
+    # Add zero line
+    ax.axhline(y=0, color=COLORS['text'], linestyle='-', alpha=0.3, linewidth=0.5)
+    
+    # Remove spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    plt.tight_layout()
+    
+    # Convert to base64
+    buffer = io.BytesIO()
+    plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight', facecolor=COLORS['background'])
+    plt.close()
+    
+    buffer.seek(0)
+    image_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+    
+    return f"data:image/png;base64,{image_base64}"
+
+
+def render_waterfall_chart(data: Dict[str, Any]) -> str:
+    """
+    Render a waterfall chart for variance analysis
+    
+    Args:
+        data: Dictionary with 'categories', 'values', 'title'
         
-        # Determine color based on performance
-        if pct_of_target >= 95:
-            color = self.theme['colors']['success_color']
-        elif pct_of_target >= 80:
-            color = self.theme['colors']['warning_color']
+    Returns:
+        Base64 encoded PNG image
+    """
+    set_chart_style()
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Extract data
+    categories = data.get('categories', [])
+    values = data.get('values', [])
+    title = data.get('title', 'Variance Analysis')
+    
+    # Calculate cumulative values
+    cumulative = np.cumsum(values)
+    
+    # Create waterfall
+    for i, (cat, val, cum) in enumerate(zip(categories, values, cumulative)):
+        # Determine bar properties
+        if i == 0:  # Starting value
+            bottom = 0
+            height = val
+            color = COLORS['primary']
+        elif i == len(categories) - 1:  # Ending value
+            bottom = 0
+            height = cum
+            color = COLORS['primary']
+        else:  # Changes
+            bottom = cumulative[i-1] if val > 0 else cum
+            height = abs(val)
+            color = COLORS['positive'] if val > 0 else COLORS['negative']
+        
+        # Draw bar
+        bar = ax.bar(i, height, bottom=bottom, color=color, alpha=0.8, edgecolor='white', linewidth=1)
+        
+        # Add connector lines
+        if 0 < i < len(categories) - 1:
+            ax.plot([i-0.4, i+0.4], [cumulative[i-1], cumulative[i-1]], 'k--', alpha=0.5, linewidth=1)
+        
+        # Add value labels
+        label_y = bottom + height/2
+        ax.text(i, label_y, f'{val:+,.0f}' if i > 0 and i < len(categories)-1 else f'{val:,.0f}',
+                ha='center', va='center', fontsize=9, color='white', fontweight='bold')
+    
+    # Styling
+    ax.set_title(title, fontsize=14, fontweight='bold', pad=20, color=COLORS['primary'])
+    ax.set_ylabel('Value ($)', fontsize=11, color=COLORS['text'])
+    ax.set_xticks(range(len(categories)))
+    ax.set_xticklabels(categories, rotation=45 if len(categories) > 6 else 0, ha='right' if len(categories) > 6 else 'center')
+    
+    # Format y-axis
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x/1000:.0f}K'))
+    
+    # Remove spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    plt.tight_layout()
+    
+    # Convert to base64
+    buffer = io.BytesIO()
+    plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight', facecolor=COLORS['background'])
+    plt.close()
+    
+    buffer.seek(0)
+    image_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+    
+    return f"data:image/png;base64,{image_base64}"
+
+
+def render_scenario_chart(data: Dict[str, Any]) -> str:
+    """
+    Render a multi-line chart for scenario analysis
+    
+    Args:
+        data: Dictionary with scenarios (base_case, optimistic, conservative)
+        
+    Returns:
+        Base64 encoded PNG image
+    """
+    set_chart_style()
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Colors for scenarios
+    scenario_colors = {
+        'base_case': COLORS['secondary'],
+        'optimistic': COLORS['positive'],
+        'conservative': COLORS['accent']
+    }
+    
+    scenario_labels = {
+        'base_case': 'Base Case',
+        'optimistic': 'Optimistic',
+        'conservative': 'Conservative'
+    }
+    
+    # Plot each scenario
+    for scenario_key, color in scenario_colors.items():
+        scenario_data = data.get(scenario_key, [])
+        if scenario_data:
+            months = [d['month'] for d in scenario_data]
+            revenues = [d['revenue'] for d in scenario_data]
+            
+            ax.plot(months, revenues,
+                   color=color,
+                   linewidth=2.5,
+                   label=scenario_labels[scenario_key],
+                   marker='o' if scenario_key == 'base_case' else None,
+                   markersize=5)
+    
+    # Styling
+    ax.set_title('Revenue Forecast Scenarios', fontsize=14, fontweight='bold', pad=20, color=COLORS['primary'])
+    ax.set_ylabel('Revenue ($)', fontsize=11, color=COLORS['text'])
+    ax.set_xlabel('')
+    
+    # Format y-axis
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x/1000000:.1f}M'))
+    
+    # Legend
+    ax.legend(loc='upper left', frameon=True, fancybox=True, shadow=False)
+    
+    # Rotate x labels
+    plt.xticks(rotation=45, ha='right')
+    
+    # Remove spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    
+    plt.tight_layout()
+    
+    # Convert to base64
+    buffer = io.BytesIO()
+    plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight', facecolor=COLORS['background'])
+    plt.close()
+    
+    buffer.seek(0)
+    image_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+    
+    return f"data:image/png;base64,{image_base64}"
+
+
+def build_base64_chart(chart_type: str, data: Dict[str, Any], **kwargs) -> str:
+    """
+    Main entry point for chart generation
+    
+    Args:
+        chart_type: Type of chart (line, area, bar, waterfall, scenario)
+        data: Chart data
+        **kwargs: Additional parameters
+        
+    Returns:
+        Base64 encoded PNG image
+    """
+    try:
+        if chart_type == 'line':
+            return render_line_chart(data, kwargs.get('palette_key', 'secondary'))
+        elif chart_type == 'area':
+            return render_area_chart(data, kwargs.get('palette_key', 'accent'))
+        elif chart_type == 'bar':
+            return render_bar_chart(data, kwargs.get('palette_key', 'secondary'))
+        elif chart_type == 'waterfall':
+            return render_waterfall_chart(data)
+        elif chart_type == 'scenario':
+            return render_scenario_chart(data)
         else:
-            color = self.theme['colors']['danger_color']
+            raise ValueError(f"Unknown chart type: {chart_type}")
+            
+    except Exception as e:
+        logger.error(f"Chart generation failed: {e}")
         
-        # Plot gauge
-        ax.bar(theta[1] * 3.14159 / 180, radii[1], width=0.3, bottom=0.5,
-              color=color, alpha=0.8)
-        
-        # Add text
-        ax.text(0, -0.1, f'{value:.1f}{"%" if is_percentage else ""}', 
-               ha='center', va='center', fontsize=24, fontweight='bold')
-        ax.text(0, -0.3, f'Target: {target:.1f}{"%" if is_percentage else ""}', 
-               ha='center', va='center', fontsize=12, 
-               color=self.theme['charts']['text_color'])
-        
-        # Remove polar labels
+        # Return a placeholder image
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.text(0.5, 0.5, f'Chart Generation Failed\n{chart_type}', 
+                ha='center', va='center', fontsize=14, color=COLORS['text'])
+        ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
-        ax.set_yticklabels([])
-        ax.set_xticklabels([])
-        ax.grid(False)
-        ax.spines['polar'].set_visible(False)
+        ax.axis('off')
         
-        # Title
-        plt.title(title, fontsize=14, fontweight='bold', pad=20)
+        buffer = io.BytesIO()
+        plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight')
+        plt.close()
         
-        plt.tight_layout()
-        
-        return self._fig_to_base64(fig)
-    
-    def generate_all_charts(self, report_data: Dict[str, Any]) -> Dict[str, str]:
-        """Generate all charts for a report"""
-        charts = {}
-        
-        try:
-            # Revenue trend
-            if 'income_statement' in report_data:
-                revenue_data = next((item for item in report_data['income_statement'] 
-                                   if item['label'] == 'Revenue'), None)
-                if revenue_data and revenue_data['values']:
-                    charts['revenue_trend'] = self.plot_revenue_trend(
-                        report_data['periods'][-len(revenue_data['values']):],
-                        revenue_data['values']
-                    )
-            
-            # Margin analysis
-            if 'kpi_dashboard' in report_data and 'Financial' in report_data['kpi_dashboard']:
-                financial_kpis = report_data['kpi_dashboard']['Financial']
-                gross_margin = next((m for m in financial_kpis if m['name'] == 'Gross Margin %'), None)
-                ebitda_margin = next((m for m in financial_kpis if m['name'] == 'EBITDA Margin %'), None)
-                
-                if gross_margin or ebitda_margin:
-                    charts['margin_analysis'] = self.plot_margin_analysis(
-                        report_data['periods'][-3:],
-                        gross_margin['values'] if gross_margin else [None]*3,
-                        ebitda_margin['values'] if ebitda_margin else [None]*3
-                    )
-            
-            # Cash runway
-            if 'runway_analysis' in report_data and report_data['runway_analysis']:
-                runway = report_data['runway_analysis']
-                if runway.get('cash') and runway.get('burn_rate'):
-                    charts['cash_runway'] = self.plot_cash_runway(
-                        runway['cash'],
-                        runway['burn_rate'],
-                        int(runway['months'])
-                    )
-            
-        except Exception as e:
-            logger.error(f"Error generating charts: {e}")
-        
-        return charts
+        buffer.seek(0)
+        return f"data:image/png;base64,{base64.b64encode(buffer.read()).decode('utf-8')}"

@@ -33,7 +33,7 @@ make init-db
 
 # Create demo workspace and sync QuickBooks data
 echo "🏢 Creating demo workspace and syncing QuickBooks sandbox data..."
-python backend/scripts/seed_demo.py
+python scripts/seed_demo.py
 
 # Run all scheduler jobs to populate data
 echo "⚡ Running initial data sync and calculations..."
@@ -41,7 +41,7 @@ make scheduler-all
 
 # Start the backend API in the background
 echo "🖥️  Starting backend API..."
-cd backend && uvicorn app.main:app --reload --port 8000 &
+uvicorn app.main:app --reload --port 8000 &
 BACKEND_PID=$!
 cd ..
 
@@ -61,6 +61,11 @@ cd frontend && npm run dev &
 FRONTEND_PID=$!
 cd ..
 
+# Generate initial demo PDF report
+echo "📄 Generating demo board pack PDF..."
+sleep 3  # Give backend time to fully start
+curl -s http://localhost:8000/api/demo/reports/board-pack.pdf > /tmp/finwave_demo_report.pdf || echo "⚠️  PDF generation will be available once services are ready"
+
 echo ""
 echo "✅ FinWave is ready!"
 echo ""
@@ -72,6 +77,10 @@ echo "🔑 Password: password"
 echo ""
 echo "💡 The QuickBooks sandbox data for Craig's Design & Landscaping Services has been loaded."
 echo "   Generate your first board report by clicking 'Generate Report' in the UI!"
+echo ""
+echo "📊 Demo Endpoints:"
+echo "   - Board Pack PDF: GET http://localhost:8000/api/demo/reports/board-pack.pdf"
+echo "   - AI Chat: POST http://localhost:8000/api/ask"
 echo ""
 echo "Press Ctrl+C to stop all services"
 

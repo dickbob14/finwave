@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import useSWR from 'swr';
+import { useRouter } from 'next/navigation';
+import useSWR, { mutate } from 'swr';
 import {
   Dialog,
   DialogContent,
@@ -24,9 +24,11 @@ import {
   FileSpreadsheet,
   AlertCircle,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  Settings
 } from 'lucide-react';
 import { fetcher } from '@/lib/utils';
+import { OAuthConfigDialog } from './oauth-config-dialog';
 
 interface ConnectDataSourceProps {
   open: boolean;
@@ -93,15 +95,23 @@ const DATA_SOURCES = [
 ];
 
 export function ConnectDataSource({ open, onOpenChange, workspaceId }: ConnectDataSourceProps) {
-  const navigate = useNavigate();
+  const router = useRouter();
   const [step, setStep] = useState<'select' | 'connecting' | 'success' | 'error'>('select');
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncProgress, setSyncProgress] = useState(0);
+  const [showOAuthConfig, setShowOAuthConfig] = useState(false);
+  const [configureSource, setConfigureSource] = useState<string | null>(null);
   
   // Fetch existing integrations
   const { data: integrations, mutate: refreshIntegrations } = useSWR<Integration[]>(
     open ? `/api/${workspaceId}/oauth/integrations` : null,
+    fetcher
+  );
+  
+  // Fetch OAuth configurations
+  const { data: oauthConfigs } = useSWR(
+    open ? `/api/${workspaceId}/oauth/config/list` : null,
     fetcher
   );
   
@@ -114,29 +124,34 @@ export function ConnectDataSource({ open, onOpenChange, workspaceId }: ConnectDa
       // Initiate OAuth flow
       const response = await fetch(`/api/${workspaceId}/oauth/connect/${sourceId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer demo-token' // Demo token for BYPASS_AUTH mode
+        }
       });
       
       if (!response.ok) {
-        throw new Error('Failed to initiate connection');
+        const errorData = await response.json();
+        if (errorData.detail?.includes('not configured')) {
+          // OAuth not configured, show configuration dialog
+          setStep('select');
+          setConfigureSource(sourceId);
+          setShowOAuthConfig(true);
+          return;
+        }
+        throw new Error(errorData.detail || 'Failed to initiate connection');
       }
       
       const data = await response.json();
       
-      // Open OAuth window
-      const authWindow = window.open(
-        data.auth_url,
-        'oauth',
-        'width=600,height=700,left=100,top=100'
-      );
+      // Open OAuth in new tab instead of popup
+      window.open(data.auth_url, '_blank');
       
-      // Poll for completion
-      const checkInterval = setInterval(() => {
-        if (authWindow?.closed) {
-          clearInterval(checkInterval);
-          checkConnectionStatus(sourceId);
-        }
-      }, 1000);
+      // Don't poll - instead show a message to check back
+      setTimeout(() => {
+        setStep('select');
+        refreshIntegrations();
+      }, 3000);
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Connection failed');
@@ -176,7 +191,10 @@ export function ConnectDataSource({ open, onOpenChange, workspaceId }: ConnectDa
   const handleTriggerSync = async (sourceId: string) => {
     try {
       await fetch(`/api/${workspaceId}/oauth/integrations/${sourceId}/sync`, {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer demo-token' // Demo token for BYPASS_AUTH mode
+        }
       });
       await refreshIntegrations();
     } catch (err) {
@@ -202,6 +220,8 @@ export function ConnectDataSource({ open, onOpenChange, workspaceId }: ConnectDa
               {DATA_SOURCES.map(source => {
                 const integration = integrations?.find(i => i.source === source.id);
                 const isConnected = integration?.status === 'connected';
+                const oauthConfig = oauthConfigs?.find((c: any) => c.source === source.id);
+                const isConfigured = oauthConfig?.is_configured;
                 
                 return (
                   <Card key={source.id} className={isConnected ? 'border-green-500' : ''}>
@@ -220,6 +240,11 @@ export function ConnectDataSource({ open, onOpenChange, workspaceId }: ConnectDa
                                   Connected
                                 </Badge>
                               )}
+                              {!isConnected && !isConfigured && (
+                                <Badge variant="secondary" className="ml-2">
+                                  Setup Required
+                                </Badge>
+                              )}
                             </CardTitle>
                             <CardDescription>{source.description}</CardDescription>
                           </div>
@@ -236,9 +261,25 @@ export function ConnectDataSource({ open, onOpenChange, workspaceId }: ConnectDa
                             </Button>
                           </div>
                         ) : (
-                          <Button onClick={() => handleConnect(source.id)}>
-                            Connect
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setConfigureSource(source.id);
+                                setShowOAuthConfig(true);
+                              }}
+                            >
+                              <Settings className="h-4 w-4 mr-2" />
+                              Configure
+                            </Button>
+                            <Button 
+                              onClick={() => handleConnect(source.id)}
+                              disabled={!isConfigured && source.id !== 'google_sheets'}
+                            >
+                              Connect
+                            </Button>
+                          </div>
                         )}
                       </div>
                     </CardHeader>
@@ -289,7 +330,10 @@ export function ConnectDataSource({ open, onOpenChange, workspaceId }: ConnectDa
             <div>
               <h3 className="text-lg font-semibold">Connecting to {source?.name}</h3>
               <p className="text-muted-foreground mt-2">
-                Complete the authorization in the popup window
+                Complete the authorization in the new tab that just opened
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                This dialog will automatically refresh when done
               </p>
             </div>
             <Progress value={syncProgress} className="max-w-xs mx-auto" />
@@ -319,7 +363,7 @@ export function ConnectDataSource({ open, onOpenChange, workspaceId }: ConnectDa
               </Button>
               <Button onClick={() => {
                 onOpenChange(false);
-                navigate('/dashboard');
+                router.push('/dashboard');
               }}>
                 Go to Dashboard
               </Button>
@@ -346,27 +390,44 @@ export function ConnectDataSource({ open, onOpenChange, workspaceId }: ConnectDa
   };
   
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Connect Data Sources</DialogTitle>
-          <DialogDescription>
-            Connect your business tools to automatically sync financial data
-          </DialogDescription>
-        </DialogHeader>
-        
-        {renderContent()}
-        
-        {step === 'select' && integrations && integrations.length > 0 && (
-          <Alert className="mt-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              You have {integrations.length} active connection{integrations.length > 1 ? 's' : ''}.
-              Data syncs automatically every hour.
-            </AlertDescription>
-          </Alert>
-        )}
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Connect Data Sources</DialogTitle>
+            <DialogDescription>
+              Connect your business tools to automatically sync financial data
+            </DialogDescription>
+          </DialogHeader>
+          
+          {renderContent()}
+          
+          {step === 'select' && integrations && integrations.length > 0 && (
+            <Alert className="mt-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                You have {integrations.length} active connection{integrations.length > 1 ? 's' : ''}.
+                Data syncs automatically every hour.
+              </AlertDescription>
+            </Alert>
+          )}
+        </DialogContent>
+      </Dialog>
+      
+      {configureSource && (
+        <OAuthConfigDialog
+          open={showOAuthConfig}
+          onOpenChange={setShowOAuthConfig}
+          workspaceId={workspaceId}
+          source={configureSource}
+          onConfigured={() => {
+            setShowOAuthConfig(false);
+            setConfigureSource(null);
+            // Refresh OAuth configs
+            mutate(`/api/${workspaceId}/oauth/config/list`);
+          }}
+        />
+      )}
+    </>
   );
 }

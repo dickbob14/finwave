@@ -200,6 +200,44 @@ async def get_template_history(
         "total": len(files)
     }
 
+@router.get("/{template_name}/snapshot")
+async def get_template_snapshot(template_name: str):
+    """
+    Get the template file for download
+    
+    Returns the base template Excel file
+    """
+    # Map template names to actual file names
+    template_files = {
+        "3statement": "3statement_model.xlsx",
+        "budget": "3statement_model.xlsx",
+        "kpi": "kpi_dashboard.xlsx",
+        "cash_flow": "3statement_model.xlsx",
+        "revenue": "3statement_model.xlsx"
+    }
+    
+    filename = template_files.get(template_name)
+    if not filename:
+        raise HTTPException(status_code=404, detail=f"Template not found: {template_name}")
+    
+    # Check multiple possible locations
+    possible_paths = [
+        f"templates/{filename}",
+        f"assets/templates/{filename}",
+        f"backend/assets/templates/{filename}"
+    ]
+    
+    for path in possible_paths:
+        file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), path)
+        if os.path.exists(file_path):
+            return FileResponse(
+                path=file_path,
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                filename=f"{template_name}_template.xlsx"
+            )
+    
+    raise HTTPException(status_code=404, detail="Template file not found")
+
 @router.post("/{template_name}/schedule")
 async def schedule_template_refresh(
     template_name: str,

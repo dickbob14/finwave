@@ -6,9 +6,15 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export const fetcher = async (url: string) => {
-  const res = await fetch(url);
+  const res = await fetch(url, {
+    headers: {
+      'Authorization': 'Bearer demo-token', // Demo token for BYPASS_AUTH mode
+      'Content-Type': 'application/json'
+    }
+  });
   if (!res.ok) {
-    throw new Error('Failed to fetch');
+    const error = await res.text();
+    throw new Error(`Failed to fetch: ${res.status} ${error}`);
   }
   return res.json();
 };

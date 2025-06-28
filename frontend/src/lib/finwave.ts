@@ -69,7 +69,11 @@ export interface ChartResponse {
 
 // Base fetcher function
 const fetcher = async (url: string) => {
-  const response = await fetch(`${API_BASE_URL}${url}`);
+  const response = await fetch(`${API_BASE_URL}${url}`, {
+    headers: {
+      'Authorization': 'Bearer demo-token'
+    }
+  });
   if (!response.ok) {
     throw new Error(`API Error: ${response.status}`);
   }
@@ -82,6 +86,7 @@ const postFetcher = async ({ url, data }: { url: string; data: unknown }) => {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': 'Bearer demo-token'
     },
     body: JSON.stringify(data),
   });
@@ -106,7 +111,7 @@ export function useHealth() {
 }
 
 export function useInsights() {
-  const { data, error, isLoading, mutate } = useSWR<InsightsResponse>('/real/insights', fetcher, {
+  const { data, error, isLoading, mutate } = useSWR<InsightsResponse>('/api/demo/insights', fetcher, {
     revalidateOnFocus: false,
     onError: (err) => console.error('Insights fetch error:', err),
   });

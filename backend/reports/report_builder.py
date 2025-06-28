@@ -14,7 +14,7 @@ from metrics.models import Metric
 from models.workspace import Workspace
 from models.integration import list_workspace_integrations
 from scheduler.models import Alert, AlertSeverity
-from insights.client import InsightEngine
+from insights import InsightEngine
 from forecast.engine import ForecastEngine
 
 logger = logging.getLogger(__name__)
@@ -222,6 +222,7 @@ class ReportBuilder:
             ('ebitda_margin', 'EBITDA Margin %', 'percentage'),
             ('burn_rate', 'Burn Rate', 'dollars')
         ]
+
         
         for metric_id, name, unit in financial_metrics:
             values = self._get_metric_series(metric_id, periods[-3:])
@@ -579,3 +580,54 @@ class ReportBuilder:
                 'definition': 'Customer Lifetime Value divided by Customer Acquisition Cost'
             }
         ]
+
+def build_board_pack(workspace_id: str, period: str, include_variance: bool = True) -> Dict[str, Any]:
+    """Build and return context for a board pack PDF report."""
+    # Parse period YYYY-MM to date (first of month)
+    try:
+        period_date = datetime.strptime(period, '%Y-%m').date()
+    except Exception as e:
+        raise ValueError(f"Invalid period format '{period}', expected 'YYYY-MM'.") from e
+    # Instantiate builder and build report context
+    builder = ReportBuilder(workspace_id, period_date)
+    context = builder.build_report_context()
+    # Optionally remove variance sections
+    if not include_variance:
+        context.pop('variance_alerts', None)
+        context.pop('variance_insights', None)
+    # Prepare raw chart data container
+    context['charts'] = {}
+    # Revenue trend (last 12 months)
+    periods = builder._get_periods(12)
+    labels = [p.strftime('%b %Y') for p in periods]
+    revenue_values = builder._get_metric_series('revenue', periods)
+    context['charts']['revenue_trend'] = {
+        'labels': labels,
+        'values': revenue_values,
+        'title': 'Revenue Trend',
+        'y_label': 'Revenue ($)'
+    }
+    # Cash runway projection
+    runway_info = context.get('runway_analysis') or {}
+    runway_months = runway_info.get('months')
+    burn_rate = runway_info.get('burn_rate')
+    cash_balance = runway_info.get('cash')
+    if runway_months and burn_rate is not None and cash_balance is not None:
+        project_months = int(runway_months) if runway_months <= 12 else 12
+        proj_labels = []
+        proj_values = []
+        for i in range(project_months + 1):
+            dt = builder.period_date + relativedelta(months=i)
+            proj_labels.append(dt.strftime('%b %Y'))
+            proj_values.append(cash_balance - burn_rate * i)
+        context['charts']['runway_projection'] = {
+            'labels': proj_labels,
+            'values': proj_values,
+            'title': 'Cash Runway Projection',
+            'y_label': 'Cash Balance ($)'
+        }
+    # Scenario analysis (if provided)
+    scenarios = context.get('scenarios')
+    if scenarios:
+        context['forecast'] = scenarios
+    return context

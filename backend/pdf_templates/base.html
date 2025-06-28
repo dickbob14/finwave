@@ -3,36 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}{{ report_title }}{% endblock %}</title>
+    <title>{% block title %}FinWave Financial Report{% endblock %}</title>
+    
     <style>
         @page {
-            size: {% block page_size %}A4{% endblock %};
-            margin: 2.5cm 2cm 2.5cm 2cm;
-            @top-left {
-                content: url({{ logo_url }});
-                width: 120px;
-            }
-            @top-right {
-                content: "{{ company_name }}";
-                font-family: 'Inter', Arial, sans-serif;
-                font-size: 10pt;
+            size: A4;
+            margin: 2.5cm;
+            
+            @bottom-center {
+                content: "FinWave • Confidential";
+                font-family: 'Inter', sans-serif;
+                font-size: 9px;
                 color: #6B7280;
             }
-            @bottom-center {
-                content: "Page " counter(page) " of " counter(pages);
-                font-family: 'Inter', Arial, sans-serif;
-                font-size: 9pt;
-                color: #9CA3AF;
-            }
+            
             @bottom-right {
-                content: "{{ report_date }}";
-                font-family: 'Inter', Arial, sans-serif;
-                font-size: 9pt;
-                color: #9CA3AF;
+                content: counter(page) " of " counter(pages);
+                font-family: 'Inter', sans-serif;
+                font-size: 9px;
+                color: #6B7280;
             }
         }
         
-        /* Reset & Base Styles */
+        @page:first {
+            @bottom-center {
+                content: "";
+            }
+            @bottom-right {
+                content: "";
+            }
+        }
+        
+        /* Font faces */
+        @font-face {
+            font-family: 'Inter';
+            src: url('file://{{ fonts_path }}/Inter/Inter-Regular.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        
+        @font-face {
+            font-family: 'Inter';
+            src: url('file://{{ fonts_path }}/Inter/Inter-Bold.ttf') format('truetype');
+            font-weight: bold;
+            font-style: normal;
+        }
+        
+        @font-face {
+            font-family: 'Space Grotesk';
+            src: url('file://{{ fonts_path }}/SpaceGrotesk/SpaceGrotesk-Regular.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        
+        @font-face {
+            font-family: 'Space Grotesk';
+            src: url('file://{{ fonts_path }}/SpaceGrotesk/SpaceGrotesk-Bold.ttf') format('truetype');
+            font-weight: bold;
+            font-style: normal;
+        }
+        
+        /* Reset and base styles */
         * {
             margin: 0;
             padding: 0;
@@ -40,160 +71,100 @@
         }
         
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-            font-size: 11pt;
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
             line-height: 1.6;
-            color: {{ theme.text_primary }};
-            background: white;
+            color: #374151;
+            background-color: #FFFFFF;
         }
         
         /* Typography */
         h1, h2, h3, h4, h5, h6 {
-            font-weight: 600;
+            font-family: 'Space Grotesk', sans-serif;
+            color: #1E2A38;
             margin-bottom: 0.5em;
-            color: {{ theme.text_primary }};
+            line-height: 1.2;
         }
         
         h1 {
-            font-size: 24pt;
-            margin-bottom: 0.75em;
-            color: {{ theme.primary_color }};
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 1em;
         }
         
         h2 {
-            font-size: 18pt;
+            font-size: 22px;
+            font-weight: bold;
             margin-top: 1.5em;
+            margin-bottom: 0.75em;
             page-break-after: avoid;
         }
         
         h3 {
-            font-size: 14pt;
-            margin-top: 1.2em;
-            page-break-after: avoid;
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+        }
+        
+        h4 {
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 0.75em;
+            margin-bottom: 0.5em;
         }
         
         p {
-            margin-bottom: 0.8em;
-            text-align: justify;
+            margin-bottom: 0.75em;
         }
         
-        /* Page Breaks */
+        /* Page breaks */
         .page-break {
             page-break-after: always;
         }
         
-        .no-break {
+        .avoid-break {
             page-break-inside: avoid;
-        }
-        
-        /* Cover Page */
-        .cover-page {
-            text-align: center;
-            padding-top: 15%;
-            min-height: 100vh;
-            page-break-after: always;
-        }
-        
-        .cover-logo {
-            width: 200px;
-            margin-bottom: 3em;
-        }
-        
-        .cover-title {
-            font-size: 32pt;
-            font-weight: 700;
-            color: {{ theme.primary_color }};
-            margin-bottom: 0.5em;
-        }
-        
-        .cover-subtitle {
-            font-size: 18pt;
-            color: {{ theme.text_secondary }};
-            margin-bottom: 3em;
-        }
-        
-        .cover-date {
-            font-size: 14pt;
-            color: {{ theme.text_secondary }};
-        }
-        
-        /* Executive Summary */
-        .executive-summary {
-            background: {{ theme.background_accent }};
-            padding: 1.5em;
-            border-radius: 8px;
-            margin: 1em 0;
-            page-break-inside: avoid;
-        }
-        
-        .key-metric {
-            display: inline-block;
-            margin: 0.5em 1em 0.5em 0;
-        }
-        
-        .metric-value {
-            font-size: 24pt;
-            font-weight: 700;
-            color: {{ theme.primary_color }};
-        }
-        
-        .metric-label {
-            font-size: 10pt;
-            color: {{ theme.text_secondary }};
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        
-        .metric-change {
-            font-size: 11pt;
-            margin-left: 0.5em;
-        }
-        
-        .metric-change.positive {
-            color: {{ theme.success_color }};
-        }
-        
-        .metric-change.negative {
-            color: {{ theme.danger_color }};
         }
         
         /* Tables */
         table {
             width: 100%;
             border-collapse: collapse;
-            margin: 1em 0;
-            font-size: 10pt;
+            margin-bottom: 1.5em;
             page-break-inside: avoid;
         }
         
         th, td {
-            padding: 0.75em 1em;
+            padding: 8px 12px;
             text-align: left;
-            border-bottom: 1px solid {{ theme.border_color }};
+            border-bottom: 1px solid #E5E7EB;
         }
         
         th {
-            font-weight: 600;
-            background: {{ theme.background_accent }};
-            color: {{ theme.text_primary }};
+            background-color: #F9FAFB;
+            font-weight: bold;
+            color: #1E2A38;
+            font-size: 10px;
             text-transform: uppercase;
-            font-size: 9pt;
             letter-spacing: 0.05em;
         }
         
-        tr:hover {
-            background: {{ theme.background_hover }};
+        tr:nth-child(even) {
+            background-color: #F9FAFB;
         }
         
         .number {
             text-align: right;
-            font-variant-numeric: tabular-nums;
+            font-family: 'Space Grotesk', sans-serif;
         }
         
-        .total-row {
-            font-weight: 600;
-            border-top: 2px solid {{ theme.border_color }};
-            border-bottom: 2px solid {{ theme.border_color }};
+        .negative {
+            color: #EF4444;
+        }
+        
+        .positive {
+            color: #10B981;
         }
         
         /* Charts */
@@ -203,89 +174,156 @@
             page-break-inside: avoid;
         }
         
-        .chart-image {
+        .chart-container img {
             max-width: 100%;
             height: auto;
         }
         
-        .chart-caption {
-            font-size: 10pt;
-            color: {{ theme.text_secondary }};
-            margin-top: 0.5em;
-            font-style: italic;
+        /* KPI Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 1.5em;
         }
         
-        /* Variance Alerts */
-        .alert-box {
-            padding: 1em;
-            margin: 1em 0;
-            border-left: 4px solid;
-            background: {{ theme.background_accent }};
+        .kpi-card {
+            background-color: #F9FAFB;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            padding: 16px;
             page-break-inside: avoid;
         }
         
-        .alert-box.critical {
-            border-color: {{ theme.danger_color }};
-            background: {{ theme.danger_bg }};
+        .kpi-label {
+            font-size: 10px;
+            color: #6B7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
         }
         
-        .alert-box.warning {
-            border-color: {{ theme.warning_color }};
-            background: {{ theme.warning_bg }};
+        .kpi-value {
+            font-size: 24px;
+            font-weight: bold;
+            font-family: 'Space Grotesk', sans-serif;
+            color: #1E2A38;
+            margin-bottom: 4px;
         }
         
-        .alert-box.info {
-            border-color: {{ theme.info_color }};
-            background: {{ theme.info_bg }};
+        .kpi-change {
+            font-size: 12px;
+            font-weight: 500;
         }
         
-        .alert-title {
+        /* Alerts and badges */
+        .alert {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 1em;
+            page-break-inside: avoid;
+        }
+        
+        .alert-critical {
+            background-color: #FEE2E2;
+            border: 1px solid #FECACA;
+            color: #991B1B;
+        }
+        
+        .alert-warning {
+            background-color: #FEF3C7;
+            border: 1px solid #FDE68A;
+            color: #92400E;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 9px;
             font-weight: 600;
-            margin-bottom: 0.25em;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
         
-        /* Lists */
-        ul, ol {
-            margin: 0.5em 0 1em 2em;
+        .badge-critical {
+            background-color: #EF4444;
+            color: white;
         }
         
-        li {
-            margin-bottom: 0.3em;
+        .badge-warning {
+            background-color: #F59E0B;
+            color: white;
+        }
+        
+        .badge-info {
+            background-color: #3B82F6;
+            color: white;
+        }
+        
+        /* Executive summary */
+        .executive-summary {
+            background-color: #F9FAFB;
+            border-left: 4px solid #2DB3A6;
+            padding: 20px;
+            margin-bottom: 2em;
+            page-break-inside: avoid;
+        }
+        
+        .executive-summary p {
+            font-size: 12px;
+            line-height: 1.8;
+        }
+        
+        /* Bullet points */
+        ul.insights {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        ul.insights li {
+            padding-left: 24px;
+            position: relative;
+            margin-bottom: 8px;
+        }
+        
+        ul.insights li:before {
+            content: "•";
+            color: #2DB3A6;
+            font-weight: bold;
+            font-size: 16px;
+            position: absolute;
+            left: 8px;
         }
         
         /* Footer */
         .report-footer {
             margin-top: 3em;
             padding-top: 1em;
-            border-top: 1px solid {{ theme.border_color }};
-            font-size: 9pt;
-            color: {{ theme.text_secondary }};
+            border-top: 1px solid #E5E7EB;
+            font-size: 9px;
+            color: #6B7280;
         }
         
-        /* Utility Classes */
-        .text-right { text-align: right; }
-        .text-center { text-align: center; }
-        .text-muted { color: {{ theme.text_secondary }}; }
-        .mt-1 { margin-top: 0.5em; }
-        .mt-2 { margin-top: 1em; }
-        .mt-3 { margin-top: 1.5em; }
-        .mb-1 { margin-bottom: 0.5em; }
-        .mb-2 { margin-bottom: 1em; }
-        .mb-3 { margin-bottom: 1.5em; }
+        /* Utilities */
+        .text-center {
+            text-align: center;
+        }
         
-        /* Print Optimizations */
-        @media print {
-            .no-print {
-                display: none !important;
-            }
-            
-            a {
-                text-decoration: none;
-                color: inherit;
-            }
+        .text-right {
+            text-align: right;
+        }
+        
+        .mb-2 {
+            margin-bottom: 2em;
+        }
+        
+        .mt-2 {
+            margin-top: 2em;
         }
     </style>
-    {% block extra_css %}{% endblock %}
+    
+    {% block extra_styles %}{% endblock %}
 </head>
 <body>
     {% block content %}{% endblock %}

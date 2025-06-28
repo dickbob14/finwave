@@ -55,7 +55,7 @@ export function InsightsPanel({ templateName, onClose }: InsightsPanelProps) {
   const [isRefreshing, setIsRefreshing] = useState(false)
   
   const { data, error, isLoading, mutate } = useSWR<Insight>(
-    `${API_BASE}/insights/${templateName}`,
+    `${API_BASE}/api/insights/${templateName}`,
     fetcher
   )
 
@@ -63,7 +63,7 @@ export function InsightsPanel({ templateName, onClose }: InsightsPanelProps) {
     setIsRefreshing(true)
     try {
       const response = await fetch(
-        `${API_BASE}/insights/${templateName}/generate?refresh_data=true`,
+        `${API_BASE}/api/insights/${templateName}/generate?refresh_data=true`,
         { method: 'POST' }
       )
       

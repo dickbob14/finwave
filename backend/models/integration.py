@@ -41,8 +41,8 @@ class IntegrationCredential(Base):
     id = Column(String, primary_key=True, default=lambda: f"intg_{datetime.utcnow().timestamp()}")
     
     # Workspace relationship
-    workspace_id = Column(String, ForeignKey("workspaces.id"), nullable=False)
-    workspace = relationship("Workspace", back_populates="integrations")
+    workspace_id = Column(String, nullable=False)
+    # Note: Removed ForeignKey and relationship to avoid circular dependencies
     
     # Integration details
     source = Column(String, nullable=False)  # IntegrationSource enum value
@@ -110,7 +110,7 @@ class IntegrationCredential(Base):
             self.refresh_token_encrypted = None
     
     @property
-    def metadata(self) -> Optional[dict]:
+    def integration_metadata(self) -> Optional[dict]:
         """Decrypt and parse metadata JSON"""
         if self.metadata_encrypted:
             import json
@@ -118,8 +118,8 @@ class IntegrationCredential(Base):
             return json.loads(decrypted)
         return {}
     
-    @metadata.setter
-    def metadata(self, value: Optional[dict]):
+    @integration_metadata.setter
+    def integration_metadata(self, value: Optional[dict]):
         """Serialize and encrypt metadata"""
         if value:
             import json
@@ -195,7 +195,7 @@ def update_integration_tokens(workspace_id: str, source: str,
             integration.expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
         
         if metadata:
-            integration.metadata = metadata
+            integration.integration_metadata = metadata
         
         integration.status = IntegrationStatus.CONNECTED.value
         integration.updated_at = datetime.utcnow()

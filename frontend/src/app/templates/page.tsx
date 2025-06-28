@@ -69,7 +69,7 @@ export default function TemplatesPage() {
 
   // Fetch templates list
   const { data, error, isLoading } = useSWR<{ templates: Template[] }>(
-    `${API_BASE}/templates/`,
+    `${API_BASE}/api/templates/`,
     fetcher,
     { refreshInterval: 30000 } // Refresh every 30 seconds
   )
@@ -81,7 +81,7 @@ export default function TemplatesPage() {
       const withHistory = await Promise.all(
         templates.map(async (template) => {
           try {
-            const history = await fetcher(`${API_BASE}/templates/${template.name}/history?limit=1`)
+            const history = await fetcher(`${API_BASE}/api/templates/${template.name}/history?limit=1`)
             return {
               ...template,
               recent_files: history.files,
@@ -104,7 +104,7 @@ export default function TemplatesPage() {
       const startDate = new Date(today.getFullYear(), 0, 1) // Jan 1 of current year
       
       const response = await fetch(
-        `${API_BASE}/templates/${templateName}/populate?` + 
+        `${API_BASE}/api/templates/${templateName}/populate?` + 
         `start_date=${startDate.toISOString().split('T')[0]}&` +
         `end_date=${today.toISOString().split('T')[0]}`,
         { method: 'POST' }
@@ -122,7 +122,7 @@ export default function TemplatesPage() {
       })
 
       // Refresh the data
-      mutate(`${API_BASE}/templates/`)
+      mutate(`${API_BASE}/api/templates/`)
       mutate(['templates-with-history', data?.templates])
       
     } catch (error) {
@@ -148,7 +148,7 @@ export default function TemplatesPage() {
       }
 
       const filename = template.recent_files[0].filename
-      const response = await fetch(`${API_BASE}/templates/${template.name}/download/${filename}`)
+      const response = await fetch(`${API_BASE}/api/templates/${template.name}/download/${filename}`)
       
       if (!response.ok) {
         throw new Error('Download failed')
@@ -212,7 +212,7 @@ export default function TemplatesPage() {
             <p className="text-gray-600">
               Failed to connect to the API. Please check if the backend is running.
             </p>
-            <pre className="mt-2 text-sm text-gray-500">{API_BASE}/templates/</pre>
+            <pre className="mt-2 text-sm text-gray-500">{API_BASE}/api/templates/</pre>
           </CardContent>
         </Card>
       </div>

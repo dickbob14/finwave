@@ -80,6 +80,8 @@ coverage/
 *_token.json
 credentials/
 secrets/
+.enc
+backend/.enc
 
 # Generated files
 backend/assets/populated_*

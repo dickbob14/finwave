@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Tuple, Any
 
 import openpyxl
 from openpyxl.workbook import Workbook
-from openpyxl.worksheet.defined_name import DefinedName
+from openpyxl.workbook.defined_name import DefinedName
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -304,10 +304,7 @@ def main():
         # Run ingestion
         results = ingest_metrics(args.workspace, args.file, period_date)
         
-        print(f"\n✅ Metric ingestion complete:")
-        print(f"   Extracted: {results['extracted']} metrics")
-        print(f"   Inserted:  {results['inserted']} new records")
-        print(f"   Updated:   {results['updated']} existing records")
+        logger.info(f"Metric ingestion complete: extracted={results['extracted']}, inserted={results['inserted']}, updated={results['updated']}")
         
     except Exception as e:
         logger.error(f"Ingestion failed: {e}")

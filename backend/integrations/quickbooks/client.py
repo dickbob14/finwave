@@ -56,7 +56,10 @@ def retry_with_backoff(max_retries=3, backoff_factor=1.0):
                     last_exception = e
                     if attempt == max_retries - 1:
                         raise
-            raise last_exception
+            if last_exception:
+                raise last_exception
+            else:
+                raise Exception("All retry attempts failed")
         return wrapper
     return decorator
 
@@ -126,14 +129,17 @@ class QuickBooksClient:
         """Check if current token is valid"""
         if not self.access_token or not self.token_expiry:
             return False
-        return datetime.now() < self.token_expiry - timedelta(minutes=5)  # 5 min buffer
+        is_valid = datetime.now() < self.token_expiry - timedelta(minutes=5)  # 5 min buffer
+        logger.info(f"Token valid check: {is_valid}, expires at {self.token_expiry}, now is {datetime.now()}")
+        return is_valid
     
     def refresh_token(self):
         """Refresh the OAuth token"""
         if not self.refresh_token_value:
             raise QuickBooksAPIError("No refresh token available")
         
-        token_url = f"{self.auth_url}/tokens/bearer"
+        # Use correct OAuth2 token URL
+        token_url = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
         
         data = {
             'grant_type': 'refresh_token',
@@ -174,6 +180,9 @@ class QuickBooksClient:
         """Make API request with error handling"""
         url = f"{self.base_url}/{self.company_id}/{endpoint}"
         
+        logger.info(f"Making request to: {url}")
+        logger.info(f"Params: {params}")
+        
         response = self.session.get(
             url,
             headers=self._get_headers(),
@@ -187,13 +196,28 @@ class QuickBooksClient:
         
         # Handle token expiry
         if response.status_code == 401:
+            logger.error(f"401 Unauthorized for URL: {url}")
+            logger.error(f"Response: {response.text}")
+            logger.error(f"Company ID: {self.company_id}")
+            logger.error(f"Token valid: {self.is_token_valid()}")
             raise TokenExpiredError("Access token expired")
         
         # Handle other errors
         if response.status_code != 200:
+            logger.error(f"API request failed: {response.status_code}")
+            logger.error(f"Response: {response.text}")
             raise QuickBooksAPIError(f"API request failed: {response.status_code} - {response.text}")
         
-        return response.json()
+        # Try to parse JSON response
+        try:
+            return response.json()
+        except ValueError as e:
+            logger.error(f"Failed to parse JSON response: {e}")
+            logger.error(f"Response text: {response.text[:500]}")
+            # Return empty dict for reports that might be empty
+            if 'reports' in endpoint.lower() and response.text.strip() == '':
+                return {}
+            raise QuickBooksAPIError(f"Invalid JSON response: {response.text[:500]}")
     
     def fetch_gl(self, start_date: str, end_date: str, include_prior_year: bool = False) -> pd.DataFrame:
         """
@@ -435,6 +459,90 @@ class QuickBooksClient:
         """Fetch company information"""
         response = self._make_request('companyinfo/1')
         return response.get('CompanyInfo', {})
+    
+    def get_profit_loss_report(self, start_date: str, end_date: str) -> Dict[str, Any]:
+        """Fetch Profit & Loss report"""
+        params = {
+            'start_date': start_date,
+            'end_date': end_date,
+            'summarize_column_by': 'Total'
+        }
+        response = self._make_request('reports/ProfitAndLoss', params)
+        return response
+    
+    def get_balance_sheet_report(self, as_of_date: str) -> Dict[str, Any]:
+        """Fetch Balance Sheet report"""
+        params = {
+            'date': as_of_date,
+            'summarize_column_by': 'Total'
+        }
+        response = self._make_request('reports/BalanceSheet', params)
+        return response
+    
+    def get_customers(self) -> List[Dict]:
+        """Fetch all customers"""
+        query = "SELECT * FROM Customer"
+        response = self._make_request('query', {'query': query})
+        return response.get('QueryResponse', {}).get('Customer', [])
+    
+    def get_invoices(self) -> List[Dict]:
+        """Fetch all invoices"""
+        query = "SELECT * FROM Invoice"
+        response = self._make_request('query', {'query': query})
+        return response.get('QueryResponse', {}).get('Invoice', [])
+    
+    def get_accounts(self, max_results: int = 1000, start_position: int = 1) -> Dict[str, Any]:
+        """Fetch accounts with pagination support"""
+        query = f"SELECT * FROM Account STARTPOSITION {start_position} MAXRESULTS {max_results}"
+        response = self._make_request('query', {'query': query})
+        return response.get('QueryResponse', {})
+    
+    def get_bills(self, start_date: str = None, end_date: str = None) -> List[Dict]:
+        """Fetch bills with optional date filter"""
+        if start_date and end_date:
+            query = f"SELECT * FROM Bill WHERE TxnDate >= '{start_date}' AND TxnDate <= '{end_date}'"
+        else:
+            query = "SELECT * FROM Bill"
+        response = self._make_request('query', {'query': query})
+        return response.get('QueryResponse', {}).get('Bill', [])
+    
+    def get_journal_entries(self, start_date: str = None, end_date: str = None) -> List[Dict]:
+        """Fetch journal entries with optional date filter"""
+        if start_date and end_date:
+            query = f"SELECT * FROM JournalEntry WHERE TxnDate >= '{start_date}' AND TxnDate <= '{end_date}'"
+        else:
+            query = "SELECT * FROM JournalEntry"
+        response = self._make_request('query', {'query': query})
+        return response.get('QueryResponse', {}).get('JournalEntry', [])
+    
+    def get_cdc(self, entities: List[str], changed_since: str) -> Dict[str, Any]:
+        """
+        Change Data Capture - get entities changed since a specific date
+        
+        Args:
+            entities: List of entity types (e.g., ['Invoice', 'Bill', 'Payment'])
+            changed_since: ISO format date string (YYYY-MM-DD)
+        """
+        entities_str = ','.join(entities)
+        params = {
+            'entities': entities_str,
+            'changedSince': changed_since
+        }
+        response = self._make_request('cdc', params)
+        return response.get('CDCResponse', [{}])[0].get('QueryResponse', [])
+    
+    def query(self, query_string: str) -> Dict[str, Any]:
+        """
+        Execute a SQL-like query against QuickBooks data
+        
+        Args:
+            query_string: QuickBooks SQL query (e.g., "SELECT * FROM Account WHERE AccountType = 'Bank'")
+        
+        Returns:
+            Query response with results
+        """
+        response = self._make_request('query', {'query': query_string})
+        return response
 
 
 # Convenience functions for testing

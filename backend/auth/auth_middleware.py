@@ -187,7 +187,7 @@ async def get_current_user_dev(
         return {
             "user_id": "dev-user",
             "email": "dev@finwave.io",
-            "workspace_id": "demo-corp",
+            "workspace_id": "default",
             "permissions": ["admin", "read", "write"]
         }
     

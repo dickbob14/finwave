@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+
+{% block title %}{{ company.name }} - Board Pack - {{ period.display }}{% endblock %}
+
+{% block extra_styles %}
+<style>
+    /* Cover page specific styles */
+    .cover-page {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background: linear-gradient(135deg, #2DB3A6 0%, #5B5BF2 100%);
+        color: white;
+        page-break-after: always;
+    }
+    
+    .cover-logo {
+        width: 120px;
+        height: 120px;
+        background: white;
+        border-radius: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 48px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    
+    .cover-logo img {
+        width: 80px;
+        height: auto;
+    }
+    
+    .cover-title {
+        font-size: 48px;
+        font-weight: bold;
+        margin-bottom: 16px;
+        text-align: center;
+    }
+    
+    .cover-subtitle {
+        font-size: 24px;
+        font-weight: 300;
+        margin-bottom: 48px;
+        text-align: center;
+    }
+    
+    .cover-period {
+        font-size: 20px;
+        font-weight: 500;
+        margin-bottom: 16px;
+    }
+    
+    .cover-tagline {
+        font-size: 16px;
+        font-style: italic;
+        opacity: 0.9;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Cover Page -->
+<div class="cover-page">
+    <div class="cover-logo">
+        <img src="{{ company.logo }}" alt="{{ company.name }} Logo">
+    </div>
+    <h1 class="cover-title">{{ company.name }}</h1>
+    <div class="cover-subtitle">Financial Board Pack</div>
+    <div class="cover-period">{{ period.display }}</div>
+    <div class="cover-tagline">Surf Your Numbers</div>
+</div>
+
+<!-- Executive Summary Page -->
+<div class="page-break"></div>
+<section>
+    <h1>Executive Summary</h1>
+    
+    <!-- Key Metrics -->
+    <div class="kpi-grid">
+        {% for metric in metrics.kpis %}
+        <div class="kpi-card">
+            <div class="kpi-label">{{ metric.label }}</div>
+            <div class="kpi-value">{{ metric.formatted_value }}</div>
+            {% if metric.change %}
+            <div class="kpi-change {% if metric.change > 0 %}positive{% else %}negative{% endif %}">
+                {% if metric.change > 0 %}+{% endif %}{{ metric.change|round(1) }}%
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Executive Summary Narrative -->
+    <div class="executive-summary">
+        <p>{{ insights.executive_summary }}</p>
+    </div>
+    
+    <!-- Key Insights -->
+    <h3>Key Insights</h3>
+    <ul class="insights">
+        {% for insight in insights.key_insights %}
+        <li>{{ insight }}</li>
+        {% endfor %}
+    </ul>
+</section>
+
+<!-- Revenue Trend Chart -->
+{% if charts.revenue_trend %}
+<div class="chart-container">
+    <h3>Revenue Trend</h3>
+    <img src="{{ charts.revenue_trend }}" alt="Revenue Trend Chart" class="chart-image">
+</div>
+{% endif %}
+
+<!-- 3-Statement Analysis -->
+<div class="page-break"></div>
+<section>
+    <h1>Financial Statements</h1>
+    
+    <!-- Income Statement -->
+    <h2>Income Statement</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Item</th>
+                {% for period in periods[-6:] %}
+                <th class="number">{{ period }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in income_statement %}
+            <tr class="{% if item.is_total %}total-row{% endif %}">
+                <td style="padding-left: {{ item.indent * 20 }}px">{{ item.label }}</td>
+                {% for value in item.values %}
+                <td class="number {% if value and value < 0 %}negative{% endif %}">
+                    {% if value is not none %}
+                        ${{ "{:,.0f}".format(value) }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <!-- Balance Sheet Summary -->
+    <h2>Balance Sheet</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Item</th>
+                <th class="number">Prior Period</th>
+                <th class="number">Current Period</th>
+                <th class="number">Change %</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in balance_sheet %}
+            <tr class="{% if item.is_total %}total-row{% endif %}">
+                <td style="padding-left: {{ item.indent * 20 }}px">{{ item.label }}</td>
+                <td class="number">
+                    {% if item.prior is not none %}
+                        ${{ "{:,.0f}".format(item.prior) }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td class="number">
+                    {% if item.current is not none %}
+                        ${{ "{:,.0f}".format(item.current) }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td class="number {% if item.change and item.change > 0 %}positive{% elif item.change and item.change < 0 %}negative{% endif %}">
+                    {% if item.change is not none %}
+                        {% if item.change > 0 %}+{% endif %}{{ item.change|round(1) }}%
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<!-- Variance Analysis -->
+{% if variance_alerts %}
+<div class="page-break"></div>
+<section>
+    <h1>Variance Analysis</h1>
+    
+    {% if variance_insights %}
+    <div class="executive-summary">
+        <p>{{ variance_insights }}</p>
+    </div>
+    {% endif %}
+    
+    <h2>Critical Variances</h2>
+    {% for alert in variance_alerts %}
+    <div class="alert alert-{{ alert.severity|lower }}">
+        <div class="alert-title">
+            {{ alert.metric_name }}
+            <span class="badge badge-{{ alert.severity|lower }}">{{ alert.severity }}</span>
+        </div>
+        <p>{{ alert.message }}</p>
+        <p>
+            Current: ${{ "{:,.0f}".format(alert.current_value) }} | 
+            Expected: ${{ "{:,.0f}".format(alert.expected_value) }} | 
+            Variance: {{ alert.variance_pct|round(1) }}%
+        </p>
+    </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+<!-- Cash Runway Analysis -->
+{% if charts.runway_projection %}
+<div class="page-break"></div>
+<section>
+    <h1>Cash & Runway Analysis</h1>
+    
+    <div class="chart-container">
+        <h3>Cash Runway Projection</h3>
+        <img src="{{ charts.runway_projection }}" alt="Cash Runway Projection" class="chart-image">
+    </div>
+    
+    {% if runway_analysis %}
+    <div class="executive-summary">
+        <p>{{ runway_analysis.narrative }}</p>
+    </div>
+    {% endif %}
+</section>
+{% endif %}
+
+<!-- Forecast Scenarios -->
+{% if forecast %}
+<div class="page-break"></div>
+<section>
+    <h1>Forecast & Scenarios</h1>
+    
+    <div class="chart-container">
+        <h3>Revenue Forecast Scenarios</h3>
+        <img src="{{ charts.scenario }}" alt="Revenue Forecast Scenarios" class="chart-image">
+    </div>
+    
+    <h3>Scenario Assumptions</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Scenario</th>
+                <th>Growth Assumption</th>
+                <th>6-Month Revenue</th>
+                <th>Key Drivers</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Conservative</td>
+                <td>5% MoM</td>
+                <td class="number">${{ "{:,.0f}".format(forecast.conservative[-1].revenue) }}</td>
+                <td>Maintain current trajectory</td>
+            </tr>
+            <tr>
+                <td>Base Case</td>
+                <td>10% MoM</td>
+                <td class="number">${{ "{:,.0f}".format(forecast.base_case[-1].revenue) }}</td>
+                <td>Moderate sales expansion</td>
+            </tr>
+            <tr>
+                <td>Optimistic</td>
+                <td>15% MoM</td>
+                <td class="number">${{ "{:,.0f}".format(forecast.optimistic[-1].revenue) }}</td>
+                <td>New product launch success</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+{% endif %}
+
+<!-- Appendix -->
+<div class="page-break"></div>
+<section>
+    <h1>Appendix</h1>
+    
+    <h2>Data Sources</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>System</th>
+                <th>Data Type</th>
+                <th>Last Sync</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>{{ data_sources.accounting }}</td>
+                <td>Financial Statements, GL Detail</td>
+                <td>{{ data_sources.last_sync }}</td>
+            </tr>
+            <tr>
+                <td>{{ data_sources.crm }}</td>
+                <td>Revenue Pipeline, Customer Metrics</td>
+                <td>{{ data_sources.last_sync }}</td>
+            </tr>
+            <tr>
+                <td>{{ data_sources.payroll }}</td>
+                <td>Compensation, Headcount</td>
+                <td>{{ data_sources.last_sync }}</td>
+            </tr>
+        </tbody>
+    </table>
+    
+    <h2>Metric Definitions</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Metric</th>
+                <th>Definition</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for def in metric_definitions %}
+            <tr>
+                <td>{{ def.name }}</td>
+                <td>{{ def.definition }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <div class="report-footer">
+        <p>
+            This report was generated on {{ generated_at }} using FinWave Financial Analytics Platform.<br>
+            All data is confidential and proprietary to {{ company.name }}.<br>
+            For questions or corrections, please contact finance@{{ company.name|lower|replace(' ', '') }}.com
+        </p>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,255 @@
+"""
+Add tables for QuickBooks sync and financial data storage
+"""
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from sqlalchemy import text
+from core.database import engine
+
+
+def upgrade():
+    """Add financial sync tables"""
+    with engine.connect() as conn:
+        # Create financial_statements table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS financial_statements (
+                id VARCHAR PRIMARY KEY,
+                company_id VARCHAR NOT NULL,
+                statement_type VARCHAR NOT NULL,
+                period_start TIMESTAMP NOT NULL,
+                period_end TIMESTAMP NOT NULL,
+                data JSON NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+            )
+        """))
+        
+        # Create indexes for financial_statements
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_financial_statements_company_type 
+            ON financial_statements(company_id, statement_type)
+        """))
+        
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_financial_statements_period 
+            ON financial_statements(company_id, period_start, period_end)
+        """))
+        
+        # Create account_balances table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS account_balances (
+                id VARCHAR PRIMARY KEY,
+                company_id VARCHAR NOT NULL,
+                account_id VARCHAR NOT NULL,
+                account_name VARCHAR NOT NULL,
+                account_type VARCHAR NOT NULL,
+                account_subtype VARCHAR,
+                balance FLOAT NOT NULL,
+                currency VARCHAR DEFAULT 'USD',
+                as_of_date TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+            )
+        """))
+        
+        # Create indexes for account_balances
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_account_balances_company_account 
+            ON account_balances(company_id, account_id)
+        """))
+        
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_account_balances_date 
+            ON account_balances(company_id, as_of_date)
+        """))
+        
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_account_balances_type 
+            ON account_balances(company_id, account_type)
+        """))
+        
+        # Create transactions table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS transactions (
+                id VARCHAR PRIMARY KEY,
+                company_id VARCHAR NOT NULL,
+                quickbooks_id VARCHAR NOT NULL,
+                transaction_type VARCHAR NOT NULL,
+                transaction_date TIMESTAMP NOT NULL,
+                amount FLOAT NOT NULL,
+                currency VARCHAR DEFAULT 'USD',
+                customer_id VARCHAR,
+                vendor_id VARCHAR,
+                account_id VARCHAR,
+                description VARCHAR,
+                metadata JSON,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+            )
+        """))
+        
+        # Create indexes for transactions
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_transactions_company_type 
+            ON transactions(company_id, transaction_type)
+        """))
+        
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_transactions_date 
+            ON transactions(company_id, transaction_date)
+        """))
+        
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_transactions_quickbooks 
+            ON transactions(company_id, quickbooks_id)
+        """))
+        
+        # Create customers table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS customers (
+                id VARCHAR PRIMARY KEY,
+                company_id VARCHAR NOT NULL,
+                quickbooks_id VARCHAR NOT NULL,
+                name VARCHAR NOT NULL,
+                email VARCHAR,
+                phone VARCHAR,
+                first_transaction_date TIMESTAMP,
+                last_transaction_date TIMESTAMP,
+                total_revenue FLOAT DEFAULT 0,
+                transaction_count INTEGER DEFAULT 0,
+                status VARCHAR DEFAULT 'active',
+                churn_date TIMESTAMP,
+                metadata JSON,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+            )
+        """))
+        
+        # Create indexes for customers
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_customers_company 
+            ON customers(company_id)
+        """))
+        
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_customers_quickbooks 
+            ON customers(company_id, quickbooks_id)
+        """))
+        
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_customers_status 
+            ON customers(company_id, status)
+        """))
+        
+        # Create vendors table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS vendors (
+                id VARCHAR PRIMARY KEY,
+                company_id VARCHAR NOT NULL,
+                quickbooks_id VARCHAR NOT NULL,
+                name VARCHAR NOT NULL,
+                email VARCHAR,
+                phone VARCHAR,
+                total_spend FLOAT DEFAULT 0,
+                transaction_count INTEGER DEFAULT 0,
+                metadata JSON,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+            )
+        """))
+        
+        # Create indexes for vendors
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_vendors_company 
+            ON vendors(company_id)
+        """))
+        
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_vendors_quickbooks 
+            ON vendors(company_id, quickbooks_id)
+        """))
+        
+        # Create kpi_metrics table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS kpi_metrics (
+                id VARCHAR PRIMARY KEY,
+                company_id VARCHAR NOT NULL,
+                metric_name VARCHAR NOT NULL,
+                metric_value FLOAT NOT NULL,
+                metric_unit VARCHAR,
+                period_start TIMESTAMP NOT NULL,
+                period_end TIMESTAMP NOT NULL,
+                calculation_method VARCHAR,
+                metadata JSON,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+            )
+        """))
+        
+        # Create indexes for kpi_metrics
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_kpi_metrics_company_metric 
+            ON kpi_metrics(company_id, metric_name)
+        """))
+        
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_kpi_metrics_period 
+            ON kpi_metrics(company_id, period_start, period_end)
+        """))
+        
+        # Create sync_logs table
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS sync_logs (
+                id VARCHAR PRIMARY KEY,
+                company_id VARCHAR NOT NULL,
+                sync_type VARCHAR NOT NULL,
+                sync_status VARCHAR NOT NULL,
+                started_at TIMESTAMP NOT NULL,
+                completed_at TIMESTAMP,
+                records_synced INTEGER DEFAULT 0,
+                error_message VARCHAR,
+                metadata JSON,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+            )
+        """))
+        
+        # Create indexes for sync_logs
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_sync_logs_company 
+            ON sync_logs(company_id)
+        """))
+        
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_sync_logs_status 
+            ON sync_logs(company_id, sync_status)
+        """))
+        
+        conn.commit()
+        print("✓ Financial sync tables created successfully")
+
+
+def downgrade():
+    """Remove financial sync tables"""
+    with engine.connect() as conn:
+        # Drop tables in reverse order due to foreign key constraints
+        conn.execute(text("DROP TABLE IF EXISTS sync_logs"))
+        conn.execute(text("DROP TABLE IF EXISTS kpi_metrics"))
+        conn.execute(text("DROP TABLE IF EXISTS vendors"))
+        conn.execute(text("DROP TABLE IF EXISTS customers"))
+        conn.execute(text("DROP TABLE IF EXISTS transactions"))
+        conn.execute(text("DROP TABLE IF EXISTS account_balances"))
+        conn.execute(text("DROP TABLE IF EXISTS financial_statements"))
+        
+        conn.commit()
+        print("✓ Financial sync tables removed")
+
+
+if __name__ == "__main__":
+    upgrade()

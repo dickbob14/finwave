@@ -3,6 +3,7 @@ Excel utilities for adding named ranges to populated templates
 """
 
 import logging
+from pathlib import Path
 from typing import Dict, Any, Optional
 from openpyxl import Workbook
 from openpyxl.workbook.defined_name import DefinedName

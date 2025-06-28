@@ -8,10 +8,9 @@ from typing import Optional, Dict, Any
 from enum import Enum
 
 from sqlalchemy import Column, String, DateTime, JSON, Boolean, Integer
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 from pydantic import BaseModel, Field
-
-Base = declarative_base()
+from core.database import Base
 
 class BillingStatus(str, Enum):
     TRIAL = "trial"
@@ -57,6 +56,15 @@ class Workspace(Base):
         "api_access": True,
         "custom_templates": False
     })
+    
+    # Relationships for financial data - commented out to avoid circular imports
+    # financial_statements = relationship("FinancialStatement", back_populates="workspace", cascade="all, delete-orphan")
+    # account_balances = relationship("AccountBalance", back_populates="workspace", cascade="all, delete-orphan")
+    # transactions = relationship("Transaction", back_populates="workspace", cascade="all, delete-orphan")
+    # customers = relationship("Customer", back_populates="workspace", cascade="all, delete-orphan")
+    # vendors = relationship("Vendor", back_populates="workspace", cascade="all, delete-orphan")
+    # kpi_metrics = relationship("KPIMetric", back_populates="workspace", cascade="all, delete-orphan")
+    # sync_logs = relationship("SyncLog", back_populates="workspace", cascade="all, delete-orphan")
 
 class WorkspaceCreate(BaseModel):
     """

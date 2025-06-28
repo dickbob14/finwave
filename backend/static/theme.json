@@ -1,43 +1,55 @@
 {
   "brand": {
-    "company_name": "Craig's Design & Landscaping Services",
-    "logo_url": "/static/logos/finwave-logo.svg"
+    "name": "FinWave",
+    "tagline": "Surf Your Numbers",
+    "logo_url": "/static/logo.png",
+    "contact_email": "support@finwave.io"
   },
   "colors": {
     "primary": "#1E2A38",
-    "primary_dark": "#121B28",
-    "primary_light": "#475F84",
+    "primary_color": "#1E2A38",
     "secondary": "#2DB3A6",
-    "secondary_dark": "#1D6B64",
-    "secondary_light": "#69C9C3",
     "accent": "#5B5BF2",
-    "background": "#F9FAFB",
-    "surface": "#FFFFFF",
-    "text": "#1E2A38",
-    "text_muted": "#7587A3",
-    "border": "#E5E7EB",
-    "success": "#10B981",
+    "grid": "#E5E7EB",
+    "text": "#374151",
+    "text_primary": "#374151",
+    "text_secondary": "#6B7280",
+    "background": "#FFFFFF",
+    "background_accent": "#F9FAFB",
+    "negative": "#EF4444",
+    "positive": "#10B981",
     "warning": "#F59E0B",
-    "error": "#F87171",
-    "info": "#5B5BF2",
-    "navy": "#1E2A38",
-    "teal": "#2DB3A6",
-    "indigo": "#5B5BF2",
-    "emerald": "#10B981",
-    "coral": "#F87171",
-    "cloud": "#F9FAFB",
-    "mist": "#E5E7EB"
+    "warning_color": "#F59E0B",
+    "info": "#3B82F6",
+    "info_color": "#3B82F6",
+    "border": "#E5E7EB",
+    "border_color": "#E5E7EB",
+    "danger_color": "#EF4444",
+    "success_color": "#10B981",
+    "danger_bg": "#FEE2E2",
+    "warning_bg": "#FEF3C7",
+    "info_bg": "#DBEAFE",
+    "background_hover": "#F3F4F6"
+  },
+  "fonts": {
+    "heading": "Space Grotesk",
+    "body": "Inter",
+    "numbers": "Space Grotesk"
+  },
+  "charts": {
+    "font_family": "Inter",
+    "text_color": "#374151",
+    "grid_color": "#E5E7EB",
+    "primary_color": "#2DB3A6",
+    "secondary_color": "#5B5BF2",
+    "accent_color": "#1E2A38",
+    "danger_color": "#EF4444",
+    "success_color": "#10B981",
+    "warning_color": "#F59E0B"
   },
   "typography": {
     "font_family": "Inter, system-ui, -apple-system, sans-serif",
-    "heading_font": "Inter, system-ui, -apple-system, sans-serif",
+    "heading_font": "Space Grotesk, system-ui, -apple-system, sans-serif",
     "mono_font": "Space Grotesk, Roboto Mono, monospace"
-  },
-  "spacing": {
-    "unit": 4,
-    "small": 8,
-    "medium": 16,
-    "large": 24,
-    "xlarge": 32
   }
 }

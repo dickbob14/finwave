@@ -126,7 +126,7 @@
     <!-- Revenue Trend Chart -->
     {% if charts.revenue_trend %}
     <div class="chart-container">
-        <img src="data:image/png;base64,{{ charts.revenue_trend }}" alt="Revenue Trend" class="chart-image">
+    <img src="{{ charts.revenue_trend }}" alt="Revenue Trend" class="chart-image">
         <p class="chart-caption">Figure 1: Monthly Revenue Trend</p>
     </div>
     {% endif %}

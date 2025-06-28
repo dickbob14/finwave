@@ -5,10 +5,13 @@ Database configuration and session management
 import os
 from contextlib import contextmanager
 from typing import Generator
+from dotenv import load_dotenv
 
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
+
+# Load environment variables
+load_dotenv()
 
 # Database URL from environment
 DATABASE_URL = os.getenv(
@@ -24,14 +27,25 @@ elif DATABASE_URL.startswith("duckdb://"):
     # DuckDB support for development
     # Format: duckdb:///path/to/file.duckdb or duckdb:///:memory:
     pass  # SQLAlchemy handles this natively
+elif DATABASE_URL.startswith("sqlite://"):
+    # SQLite support for development
+    pass  # SQLAlchemy handles this natively
 
-# Create engine
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,  # Verify connections before using
-    pool_size=10,
-    max_overflow=20
-)
+# Create engine with appropriate settings for each database type
+if DATABASE_URL.startswith("sqlite://"):
+    # SQLite doesn't support these pool settings
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False}  # Needed for SQLite
+    )
+else:
+    # PostgreSQL/DuckDB settings
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,  # Verify connections before using
+        pool_size=10,
+        max_overflow=20
+    )
 
 # Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

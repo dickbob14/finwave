@@ -20,7 +20,7 @@ from metrics.models import Metric
 from models.workspace import Workspace
 from scheduler.models import Alert, AlertSeverity, AlertStatus
 from metrics.utils import normalize_period, get_period_range
-from insights.client import InsightEngine
+from insights import InsightEngine
 
 logger = logging.getLogger(__name__)
 

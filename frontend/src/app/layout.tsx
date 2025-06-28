@@ -18,7 +18,7 @@ export default function RootLayout({
       <body className="antialiased font-sans">
         <ToastProvider>
           <Navigation />
-          <main className="min-h-screen bg-cloud">
+          <main className="min-h-screen bg-gray-50">
             {children}
           </main>
         </ToastProvider>

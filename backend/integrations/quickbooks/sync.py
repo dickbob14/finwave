@@ -22,40 +22,91 @@ def sync_quickbooks_data(workspace_id: str, integration: IntegrationCredential) 
     logger.info(f"Starting QuickBooks sync for workspace {workspace_id}")
     
     try:
-        # Initialize client
+        # Get OAuth credentials for workspace
+        from core.oauth_config import get_oauth_credentials
+        credentials = get_oauth_credentials(workspace_id, 'quickbooks')
+        if not credentials:
+            raise ValueError("QuickBooks OAuth not configured for workspace")
+        
+        client_id, client_secret = credentials
+        
+        # Get realm_id from metadata
+        metadata = {}
+        if integration.integration_metadata:
+            try:
+                metadata = integration.integration_metadata
+            except Exception as e:
+                logger.warning(f"Failed to get integration metadata: {e}")
+        
+        # Initialize client with proper credentials
+        realm_id = metadata.get('realm_id')
+        logger.info(f"Initializing QuickBooks client with realm_id: {realm_id}")
+        
+        if not realm_id:
+            logger.error("CRITICAL: No realm_id found in integration metadata!")
+            logger.error(f"Metadata contents: {metadata}")
+            raise ValueError("Missing realm_id in integration metadata")
+        
         client = QuickBooksClient(
-            access_token=integration.access_token,
-            refresh_token=integration.refresh_token,
-            realm_id=integration.metadata.get('realm_id'),
-            environment='production' if 'sandbox' not in integration.metadata.get('realm_id', '') else 'sandbox'
+            client_id=client_id,
+            client_secret=client_secret,
+            company_id=realm_id
         )
+        # Set tokens directly
+        client.access_token = integration.access_token
+        client.refresh_token_value = integration.refresh_token
+        # Set token expiry if available
+        if integration.expires_at:
+            client.token_expiry = integration.expires_at
+        else:
+            # Set a default expiry (1 hour from last update)
+            from datetime import timedelta
+            client.token_expiry = integration.updated_at + timedelta(hours=1)
         
         records_processed = 0
         
         # 1. Sync P&L data
         logger.info("Fetching P&L report...")
-        pl_data = client.get_profit_loss_report(
-            start_date=(date.today().replace(day=1).replace(month=1)).isoformat(),
-            end_date=date.today().isoformat()
-        )
-        
-        if pl_data:
-            # Extract metrics from P&L
-            metrics_extracted = extract_pl_metrics(workspace_id, pl_data)
-            records_processed += metrics_extracted
-            logger.info(f"Extracted {metrics_extracted} P&L metrics")
+        try:
+            pl_data = client.get_profit_loss_report(
+                start_date=(date.today().replace(day=1).replace(month=1)).isoformat(),
+                end_date=date.today().isoformat()
+            )
+            logger.info(f"P&L data type: {type(pl_data)}")
+            logger.info(f"P&L data: {pl_data if isinstance(pl_data, dict) else str(pl_data)[:200]}")
+            
+            if pl_data and isinstance(pl_data, dict):
+                # Extract metrics from P&L
+                metrics_extracted = extract_pl_metrics(workspace_id, pl_data)
+                records_processed += metrics_extracted
+                logger.info(f"Extracted {metrics_extracted} P&L metrics")
+            else:
+                logger.warning(f"P&L report returned non-dict data: {type(pl_data)}")
+        except Exception as e:
+            logger.error(f"Error fetching P&L report: {e}")
+            logger.error(f"Error type: {type(e)}")
         
         # 2. Sync Balance Sheet
         logger.info("Fetching Balance Sheet...")
-        bs_data = client.get_balance_sheet_report(
-            as_of_date=date.today().isoformat()
-        )
-        
-        if bs_data:
-            # Extract balance sheet metrics
-            metrics_extracted = extract_balance_sheet_metrics(workspace_id, bs_data)
-            records_processed += metrics_extracted
-            logger.info(f"Extracted {metrics_extracted} balance sheet metrics")
+        try:
+            bs_data = client.get_balance_sheet_report(
+                as_of_date=date.today().isoformat()
+            )
+            logger.info(f"Balance Sheet data type: {type(bs_data)}")
+            if isinstance(bs_data, dict):
+                logger.info(f"Balance Sheet keys: {list(bs_data.keys())}")
+            
+            if bs_data and isinstance(bs_data, dict):
+                # Extract balance sheet metrics
+                metrics_extracted = extract_balance_sheet_metrics(workspace_id, bs_data)
+                records_processed += metrics_extracted
+                logger.info(f"Extracted {metrics_extracted} balance sheet metrics")
+            else:
+                logger.warning(f"Balance Sheet returned non-dict data: {type(bs_data)}")
+        except Exception as e:
+            logger.error(f"Error in Balance Sheet sync: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
         
         # 3. Sync Customer data
         logger.info("Fetching customers...")
@@ -103,8 +154,14 @@ def extract_pl_metrics(workspace_id: str, pl_data: dict) -> int:
             'Net Income': 'net_income'
         }
         
-        # Parse report data
-        for row in pl_data.get('Rows', []):
+        # Parse report data - QuickBooks returns nested structure
+        rows_data = pl_data.get('Rows', {})
+        if isinstance(rows_data, dict) and 'Row' in rows_data:
+            rows = rows_data['Row']
+        else:
+            rows = []
+            
+        for row in rows:
             if row.get('type') == 'Section':
                 section_name = row.get('Summary', {}).get('ColData', [{}])[0].get('value')
                 
@@ -177,26 +234,117 @@ def extract_pl_metrics(workspace_id: str, pl_data: dict) -> int:
 
 def extract_balance_sheet_metrics(workspace_id: str, bs_data: dict) -> int:
     """
-    Extract balance sheet metrics
+    Extract balance sheet metrics from QuickBooks report
     """
     metrics_created = 0
     current_period = date.today().replace(day=1)
     
     with get_db_session() as db:
-        # Map accounts
-        metric_mappings = {
-            'Total Bank Accounts': 'cash',
-            'Total Current Assets': 'current_assets',
-            'Total Fixed Assets': 'fixed_assets',
-            'Total Assets': 'total_assets',
-            'Total Current Liabilities': 'current_liabilities',
-            'Total Liabilities': 'total_liabilities'
-        }
+        # Process all rows recursively to find bank accounts and other metrics
+        def process_rows(rows, parent_section=""):
+            nonlocal metrics_created
+            
+            for row in rows:
+                row_type = row.get('type', '')
+                
+                if row_type == 'Section':
+                    # Get section name
+                    section_data = row.get('Header', {}).get('ColData', [{}])
+                    if section_data:
+                        section_name = section_data[0].get('value', '')
+                        
+                        # Process nested rows in this section - handle dict structure
+                        if 'Rows' in row:
+                            nested_rows = row['Rows']
+                            if isinstance(nested_rows, dict) and 'Row' in nested_rows:
+                                process_rows(nested_rows['Row'], section_name)
+                            elif isinstance(nested_rows, list):
+                                process_rows(nested_rows, section_name)
+                        
+                        # Check if this section has a summary we care about
+                        if 'Summary' in row:
+                            summary_data = row['Summary'].get('ColData', [])
+                            if len(summary_data) > 1:
+                                summary_name = summary_data[0].get('value', '')
+                                value_str = summary_data[1].get('value', '0')
+                                # Handle empty strings
+                                if value_str == '' or value_str is None:
+                                    value_str = '0'
+                                summary_value = float(value_str)
+                                
+                                # Map specific summaries to metrics
+                                if summary_name == 'Total Bank Accounts' or (parent_section == 'Current Assets' and summary_name == 'Total Bank'):
+                                    # This is the cash balance
+                                    logger.info(f"Found cash balance: {summary_value}")
+                                    save_metric(db, workspace_id, 'cash', summary_value, current_period)
+                                    metrics_created += 1
+                                elif summary_name == 'Total Accounts Receivable (A/R)':
+                                    save_metric(db, workspace_id, 'accounts_receivable', summary_value, current_period)
+                                    metrics_created += 1
+                                elif summary_name == 'Total Current Assets':
+                                    save_metric(db, workspace_id, 'current_assets', summary_value, current_period)
+                                    metrics_created += 1
+                                elif summary_name == 'Total Fixed Assets':
+                                    save_metric(db, workspace_id, 'fixed_assets', summary_value, current_period)
+                                    metrics_created += 1
+                                elif summary_name == 'Total Assets':
+                                    save_metric(db, workspace_id, 'total_assets', summary_value, current_period)
+                                    metrics_created += 1
+                                elif summary_name == 'Total Current Liabilities':
+                                    save_metric(db, workspace_id, 'current_liabilities', summary_value, current_period)
+                                    metrics_created += 1
+                                elif summary_name == 'Total Liabilities':
+                                    save_metric(db, workspace_id, 'total_liabilities', summary_value, current_period)
+                                    metrics_created += 1
+                
+                elif row_type == 'Data':
+                    # Individual account line items
+                    col_data = row.get('ColData', [])
+                    if len(col_data) > 1:
+                        account_name = col_data[0].get('value', '')
+                        value_str = col_data[1].get('value', '0')
+                        # Handle empty strings
+                        if value_str == '' or value_str is None:
+                            value_str = '0'
+                        account_value = float(value_str)
+                        
+                        # Log individual bank accounts for debugging
+                        if parent_section == 'Bank Accounts' or 'bank' in account_name.lower():
+                            logger.info(f"Found bank account: {account_name} = {account_value}")
         
-        # Similar parsing logic as P&L
-        # ... (implementation similar to extract_pl_metrics)
+        # Helper function to save/update metric
+        def save_metric(db, workspace_id, metric_id, value, period):
+            existing = db.query(Metric).filter_by(
+                workspace_id=workspace_id,
+                metric_id=metric_id,
+                period_date=period
+            ).first()
+            
+            if existing:
+                existing.value = value
+                existing.source_template = 'quickbooks_sync'
+                existing.updated_at = datetime.utcnow()
+            else:
+                metric = Metric(
+                    workspace_id=workspace_id,
+                    metric_id=metric_id,
+                    period_date=period,
+                    value=value,
+                    source_template='quickbooks_sync',
+                    unit='dollars'
+                )
+                db.add(metric)
+        
+        # Start processing from top-level rows - QuickBooks returns nested structure
+        rows_data = bs_data.get('Rows', {})
+        if isinstance(rows_data, dict) and 'Row' in rows_data:
+            rows = rows_data['Row']
+        else:
+            rows = []
+        process_rows(rows)
         
         db.commit()
+        logger.info(f"Extracted {metrics_created} balance sheet metrics")
     
     return metrics_created
 

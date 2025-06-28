@@ -1,10 +1,10 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { ConnectDataSource } from '@/components/connect-data-source'
+import { Badge } from '@/components/ui/badge'
 import { 
   ArrowRight, 
   BarChart3, 
@@ -12,239 +12,214 @@ import {
   Zap, 
   Shield, 
   TrendingUp,
+  DollarSign,
+  Users,
+  Activity,
+  ArrowUpRight,
+  ArrowDownRight,
   Database,
-  CheckCircle
+  PieChart
 } from 'lucide-react'
+
+const metrics = [
+  { 
+    title: "Total Revenue", 
+    value: "$2.4M", 
+    change: "+12.5%", 
+    trend: "up",
+    icon: DollarSign 
+  },
+  { 
+    title: "Operating Expenses", 
+    value: "$845K", 
+    change: "-5.1%", 
+    trend: "down",
+    icon: Activity 
+  },
+  { 
+    title: "Profit Margin", 
+    value: "68.2%", 
+    change: "+2.3%", 
+    trend: "up",
+    icon: TrendingUp 
+  },
+  { 
+    title: "Active Users", 
+    value: "2,847", 
+    change: "+18%", 
+    trend: "up",
+    icon: Users 
+  }
+]
 
 export default function HomePage() {
   const router = useRouter()
-  const [showConnector, setShowConnector] = useState(false)
-  const [hasIntegrations, setHasIntegrations] = useState(false)
-  
-  // Check if user has integrations
-  useEffect(() => {
-    const checkIntegrations = async () => {
-      try {
-        const res = await fetch('/api/demo/oauth/integrations')
-        if (res.ok) {
-          const data = await res.json()
-          setHasIntegrations(data.length > 0)
-        }
-      } catch (error) {
-        console.error('Failed to check integrations:', error)
-      }
-    }
-    
-    checkIntegrations()
-  }, [])
-  
-  // Redirect if already has integrations
-  useEffect(() => {
-    if (hasIntegrations) {
-      router.push('/templates')
-    }
-  }, [hasIntegrations, router])
   
   return (
-    <div className="min-h-screen">
-      {/* Hero Section with gradient background */}
-      <div className="bg-gradient-primary relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white/10"></div>
-        <div className="container mx-auto px-4 pt-16 pb-20 relative z-10">
-          <div className="text-center max-w-4xl mx-auto">
-            <h1 className="text-5xl font-display font-bold text-white mb-6">
-              Financial Analytics That Work
-              <span className="block mt-2"> Like Magic</span>
-            </h1>
-            <p className="text-xl text-white/90 mb-8">
-              Connect QuickBooks and get board-ready reports, real-time KPIs, and 
-              AI-powered insights in minutes. Built for modern finance teams.
-            </p>
-            <div className="flex gap-4 justify-center">
+    <div className="min-h-screen bg-gray-50">
+      {/* Header Section */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="container mx-auto px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-primary">Financial Dashboard</h1>
+              <p className="text-sm text-muted-foreground mt-1">Real-time insights and analytics</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                <Activity className="h-3 w-3 mr-1" />
+                Live Data
+              </Badge>
               <Button 
-                size="lg" 
-                onClick={() => setShowConnector(true)}
-                className="bg-white text-navy hover:bg-cloud font-semibold shadow-lg hover:shadow-xl transition-all"
+                variant="outline" 
+                onClick={() => router.push('/templates')}
+                className="hover:bg-gray-50"
               >
-                Connect QuickBooks
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-              <Button 
-                size="lg" 
-                variant="outline"
-                onClick={() => router.push('/demo')}
-                className="border-white text-white hover:bg-white/10"
-              >
-                View Demo
+                View Reports
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
           </div>
         </div>
-        
-        {/* Wave decoration */}
-        <svg className="absolute bottom-0 left-0 w-full" viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M0 60C240 120 480 0 720 60C960 120 1200 0 1440 60V120H0V60Z" fill="#F9FAFB"/>
-        </svg>
       </div>
-      
-      {/* Features Grid */}
-      <div className="container mx-auto px-4 py-16">
-        <div className="grid md:grid-cols-3 gap-8">
-          <Card className="card-shadow hover:card-shadow-hover transition-all duration-200 border-mist">
+
+      {/* KPI Cards */}
+      <div className="container mx-auto px-8 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {metrics.map((metric, index) => {
+            const Icon = metric.icon
+            const isPositive = metric.trend === 'up'
+            return (
+              <Card key={index} className="hover:shadow-lg transition-shadow border-gray-200">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    {metric.title}
+                  </CardTitle>
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-primary mb-2">{metric.value}</div>
+                  <div className="flex items-center">
+                    <Badge 
+                      variant="secondary"
+                      className={`text-xs ${
+                        isPositive 
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                          : 'bg-red-50 text-red-700 border-red-200'
+                      }`}
+                    >
+                      {isPositive ? (
+                        <ArrowUpRight className="h-3 w-3 mr-1" />
+                      ) : (
+                        <ArrowDownRight className="h-3 w-3 mr-1" />
+                      )}
+                      {metric.change}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground ml-2">vs last month</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+
+        {/* Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <Card className="hover:shadow-lg transition-shadow border-gray-200">
             <CardHeader>
-              <div className="h-12 w-12 bg-navy/10 rounded-lg flex items-center justify-center mb-4">
-                <FileText className="h-6 w-6 text-navy" />
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Revenue Trend</CardTitle>
+                  <CardDescription>Monthly revenue performance</CardDescription>
+                </div>
+                <BarChart3 className="h-5 w-5 text-secondary" />
               </div>
-              <CardTitle className="text-navy">Board-Ready Reports</CardTitle>
-              <CardDescription className="text-navy/70">
-                Generate beautiful PDF reports with financials, KPIs, and variance 
-                analysis in one click
-              </CardDescription>
             </CardHeader>
+            <CardContent>
+              <div className="h-[300px] bg-gray-50 rounded-lg flex items-center justify-center">
+                <p className="text-muted-foreground">Revenue chart visualization</p>
+              </div>
+            </CardContent>
           </Card>
-          
-          <Card className="card-shadow hover:card-shadow-hover transition-all duration-200 border-mist">
+
+          <Card className="hover:shadow-lg transition-shadow border-gray-200">
             <CardHeader>
-              <div className="h-12 w-12 bg-teal/10 rounded-lg flex items-center justify-center mb-4">
-                <TrendingUp className="h-6 w-6 text-teal" />
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Expense Breakdown</CardTitle>
+                  <CardDescription>By category</CardDescription>
+                </div>
+                <PieChart className="h-5 w-5 text-accent" />
               </div>
-              <CardTitle className="text-navy">Real-Time Metrics</CardTitle>
-              <CardDescription className="text-navy/70">
-                Track MRR, burn rate, runway, and custom KPIs with automatic 
-                variance alerts
-              </CardDescription>
             </CardHeader>
-          </Card>
-          
-          <Card className="card-shadow hover:card-shadow-hover transition-all duration-200 border-mist">
-            <CardHeader>
-              <div className="h-12 w-12 bg-indigo/10 rounded-lg flex items-center justify-center mb-4">
-                <Zap className="h-6 w-6 text-indigo" />
+            <CardContent>
+              <div className="h-[300px] bg-gray-50 rounded-lg flex items-center justify-center">
+                <p className="text-muted-foreground">Expense chart visualization</p>
               </div>
-              <CardTitle className="text-navy">AI Insights</CardTitle>
-              <CardDescription className="text-navy/70">
-                Get intelligent commentary and recommendations powered by GPT-4
-              </CardDescription>
-            </CardHeader>
+            </CardContent>
           </Card>
         </div>
-      </div>
-      
-      {/* How It Works */}
-      <div className="bg-mist/30 py-16">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-display font-bold text-center mb-12 text-navy">
-            From Data to Insights in 3 Steps
-          </h2>
-          <div className="max-w-4xl mx-auto">
-            <div className="space-y-8">
-              <div className="flex gap-4">
-                <div className="flex-shrink-0">
-                  <div className="h-10 w-10 bg-teal rounded-full flex items-center justify-center text-white font-bold">
-                    1
-                  </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="hover:shadow-lg transition-shadow border-gray-200">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <FileText className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold mb-2 text-navy">Connect Your Data</h3>
-                  <p className="text-navy/70">
-                    Securely connect QuickBooks, Salesforce, and Gusto. We pull your 
-                    financial data automatically.
-                  </p>
+                  <CardTitle className="text-base">Automated Reports</CardTitle>
+                  <CardDescription className="text-xs">Board-ready in one click</CardDescription>
                 </div>
               </div>
-              
-              <div className="flex gap-4">
-                <div className="flex-shrink-0">
-                  <div className="h-10 w-10 bg-teal rounded-full flex items-center justify-center text-white font-bold">
-                    2
-                  </div>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" className="w-full hover:bg-gray-50" onClick={() => router.push('/templates')}>
+                Generate Report
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow border-gray-200">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-secondary/10 rounded-lg flex items-center justify-center">
+                  <Database className="h-5 w-5 text-secondary" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold mb-2 text-navy">Automatic Analysis</h3>
-                  <p className="text-navy/70">
-                    We calculate key metrics, detect variances, and generate forecasts 
-                    using proven financial models.
-                  </p>
+                  <CardTitle className="text-base">Data Sources</CardTitle>
+                  <CardDescription className="text-xs">QuickBooks, Stripe, & more</CardDescription>
                 </div>
               </div>
-              
-              <div className="flex gap-4">
-                <div className="flex-shrink-0">
-                  <div className="h-10 w-10 bg-teal rounded-full flex items-center justify-center text-white font-bold">
-                    3
-                  </div>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" className="w-full hover:bg-gray-50" onClick={() => router.push('/settings')}>
+                Manage Integrations
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow border-gray-200">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-accent/10 rounded-lg flex items-center justify-center">
+                  <Zap className="h-5 w-5 text-accent" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold mb-2 text-navy">Share & Collaborate</h3>
-                  <p className="text-navy/70">
-                    Generate board reports, share dashboards, and get alerts when 
-                    metrics need attention.
-                  </p>
+                  <CardTitle className="text-base">AI Insights</CardTitle>
+                  <CardDescription className="text-xs">Powered by GPT-4</CardDescription>
                 </div>
               </div>
-            </div>
-          </div>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" className="w-full hover:bg-gray-50" onClick={() => router.push('/ask')}>
+                Ask AI Assistant
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
-      
-      {/* Trust Section */}
-      <div className="container mx-auto px-4 py-16">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-display font-bold mb-4 text-navy">Built for Finance Teams</h2>
-          <p className="text-navy/70">
-            Trusted by CFOs and finance leaders at growing companies
-          </p>
-        </div>
-        <div className="grid md:grid-cols-4 gap-8 text-center">
-          <div>
-            <Shield className="h-8 w-8 text-teal mx-auto mb-2" />
-            <h3 className="font-semibold text-navy">Bank-Level Security</h3>
-            <p className="text-sm text-navy/70">256-bit encryption</p>
-          </div>
-          <div>
-            <Database className="h-8 w-8 text-teal mx-auto mb-2" />
-            <h3 className="font-semibold text-navy">Real-Time Sync</h3>
-            <p className="text-sm text-navy/70">Always up to date</p>
-          </div>
-          <div>
-            <BarChart3 className="h-8 w-8 text-teal mx-auto mb-2" />
-            <h3 className="font-semibold text-navy">Custom Metrics</h3>
-            <p className="text-sm text-navy/70">Track what matters</p>
-          </div>
-          <div>
-            <CheckCircle className="h-8 w-8 text-teal mx-auto mb-2" />
-            <h3 className="font-semibold text-navy">SOC 2 Compliant</h3>
-            <p className="text-sm text-navy/70">Enterprise ready</p>
-          </div>
-        </div>
-      </div>
-      
-      {/* CTA Section */}
-      <div className="bg-navy py-16">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl font-display font-bold text-white mb-4">
-            Ready to Transform Your Financial Reporting?
-          </h2>
-          <p className="text-white/80 mb-8">
-            Join finance teams saving 10+ hours per month on reporting
-          </p>
-          <Button 
-            size="lg" 
-            className="bg-teal hover:bg-teal/90 text-white font-semibold shadow-lg hover:shadow-xl transition-all"
-            onClick={() => setShowConnector(true)}
-          >
-            Get Started Free
-            <ArrowRight className="ml-2 h-5 w-5" />
-          </Button>
-        </div>
-      </div>
-      
-      {/* Connect Data Source Modal */}
-      <ConnectDataSource
-        open={showConnector}
-        onOpenChange={setShowConnector}
-        workspaceId="demo"
-      />
     </div>
   )
 }
